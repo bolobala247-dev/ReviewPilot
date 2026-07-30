@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { FileDiff } from '@domain/types';
 import { AppError, ErrorCode } from '@domain/errors';
+import { getFileLanguage } from './language';
 import { logger } from './logger';
 
 export interface GitHubConfig {
@@ -38,7 +39,7 @@ export class GitHubAdapter {
       const files: FileDiff[] = pullFiles.map((file) => ({
         filename: file.filename,
         language: getFileLanguage(file.filename),
-        patch: file.patch ?? '',
+        patch: file.patch ?? undefined,
         additions: file.additions,
         deletions: file.deletions,
       }));
@@ -53,20 +54,16 @@ export class GitHubAdapter {
         files,
       };
     } catch (error: unknown) {
-      throw this.handleOctokitError(error, owner, repo, prNumber);
+      throw this.handleError(error, owner, repo, prNumber);
     }
   }
 
-  private handleOctokitError(
-    error: unknown,
-    owner: string,
-    repo: string,
-    prNumber: number,
-  ): AppError {
-    const err = error as { status?: number; message?: string };
+  private handleError(error: unknown, owner: string, repo: string, prNumber: number): AppError {
+    const status = getErrorStatus(error);
+    const message = getErrorMessage(error);
     const cause = error instanceof Error ? error : undefined;
 
-    if (err.status === 404) {
+    if (status === 404) {
       return new AppError(
         ErrorCode.GITHUB_ERROR,
         `Pull Request ${owner}/${repo}#${prNumber} not found`,
@@ -75,7 +72,7 @@ export class GitHubAdapter {
       );
     }
 
-    if (err.status === 401 || err.status === 403) {
+    if (status === 401 || status === 403) {
       return new AppError(
         ErrorCode.AUTH_FAILED,
         `GitHub authentication/permissions error for ${owner}/${repo}`,
@@ -84,11 +81,10 @@ export class GitHubAdapter {
       );
     }
 
-    if (err.status === 429) {
+    if (status === 429) {
       return new AppError(ErrorCode.RATE_LIMIT, 'GitHub API rate limit exceeded', true, cause);
     }
 
-    const message = err.message ?? 'Unknown error';
     return new AppError(
       ErrorCode.GITHUB_ERROR,
       `Failed to fetch PR ${owner}/${repo}#${prNumber}: ${message}`,
@@ -98,28 +94,21 @@ export class GitHubAdapter {
   }
 }
 
-function getFileLanguage(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  const langMap: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'typescript',
-    js: 'javascript',
-    jsx: 'javascript',
-    py: 'python',
-    go: 'go',
-    rs: 'rust',
-    java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    cs: 'csharp',
-    html: 'html',
-    css: 'css',
-    json: 'json',
-    yml: 'yaml',
-    yaml: 'yaml',
-    md: 'markdown',
-    sql: 'sql',
-    sh: 'bash',
-  };
-  return langMap[ext] ?? 'plaintext';
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status: unknown }).status;
+    return typeof status === 'number' ? status : undefined;
+  }
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const msg = (error as { message: unknown }).message;
+    return typeof msg === 'string' ? msg : 'Unknown error';
+  }
+  return 'Unknown error';
 }

@@ -1,5 +1,5 @@
 {
-  "name": "ai-code-review-orchestrator",
+  "name": "reviewpilot",
   "version": "1.0.0",
   "description": "Provider-agnostic AI Code Review Orchestrator for GitHub Pull Requests",
   "main": "dist/cli.js",

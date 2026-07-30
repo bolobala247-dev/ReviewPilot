@@ -80,7 +80,7 @@ describe('PromptBuilder', () => {
     });
 
     expect(res.userPrompt).toContain('### File: assets/image.png');
-    expect(res.userPrompt).toContain('```diff\n\n```');
+    expect(res.userPrompt).toContain('Binary file or patch unavailable.');
   });
 
   it('should handle empty PR with zero files', () => {

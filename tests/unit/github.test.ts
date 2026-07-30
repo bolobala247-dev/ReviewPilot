@@ -142,7 +142,7 @@ describe('GitHubAdapter', () => {
     expect(result.files[0]).toEqual({
       filename: 'assets/logo.png',
       language: 'plaintext',
-      patch: '',
+      patch: undefined,
       additions: 0,
       deletions: 0,
     });

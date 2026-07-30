@@ -73,9 +73,11 @@ export function buildPrompt(options: BuildPromptOptions): PromptResult {
 }
 
 function formatSingleFile(file: FileDiff): string {
-  const patch = file.patch ?? '';
-  const safePatch = escapeMarkdownFences(patch);
-  return `### File: ${file.filename}\nLanguage: ${file.language}\nAdditions: ${file.additions}, Deletions: ${file.deletions}\n\`\`\`diff\n${safePatch}\n\`\`\``;
+  const patch =
+    file.patch !== undefined
+      ? escapeMarkdownFences(file.patch)
+      : 'Binary file or patch unavailable.';
+  return `### File: ${file.filename}\nLanguage: ${file.language}\nAdditions: ${file.additions}, Deletions: ${file.deletions}\n\`\`\`diff\n${patch}\n\`\`\``;
 }
 
 function escapeMarkdownFences(content: string): string {

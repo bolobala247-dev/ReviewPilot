@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
+import { IAIProvider, AIReviewRequest, AIResponse } from '@domain/ports';
 import { AppError, ErrorCode } from '@domain/errors';
 import { logger } from '../logger';
 
@@ -11,7 +11,7 @@ export interface OpenAIAdapterConfig {
 }
 
 export class OpenAIAdapter implements IAIProvider {
-  readonly name = 'openai';
+  readonly name = 'openai' as const;
   private readonly client: OpenAI;
   private readonly model: string;
   private readonly defaultTemperature: number;
@@ -30,7 +30,7 @@ export class OpenAIAdapter implements IAIProvider {
     this.timeoutMs = config.timeoutMs ?? 30000;
   }
 
-  async review(request: AIReviewRequest): Promise<AIReviewResponse> {
+  async review(request: AIReviewRequest): Promise<AIResponse> {
     const startTime = Date.now();
     try {
       const response = await this.client.chat.completions.create(
@@ -60,8 +60,12 @@ export class OpenAIAdapter implements IAIProvider {
 
       return {
         content,
-        tokensUsed,
-        model: this.model,
+        metadata: {
+          provider: this.name,
+          model: this.model,
+          tokensUsed,
+          durationMs,
+        },
       };
     } catch (error: unknown) {
       throw this.handleError(error);
@@ -69,22 +73,62 @@ export class OpenAIAdapter implements IAIProvider {
   }
 
   private handleError(error: unknown): AppError {
-    const err = error as { status?: number; code?: string; message?: string; name?: string };
+    const status = getErrorStatus(error);
+    const code = getErrorCode(error);
+    const name = getErrorName(error);
+    const message = getErrorMessage(error);
     const cause = error instanceof Error ? error : undefined;
 
-    if (err.name === 'APIConnectionTimeoutError' || err.code === 'ETIMEDOUT') {
+    if (name === 'APIConnectionTimeoutError' || code === 'ETIMEDOUT') {
       return new AppError(ErrorCode.TIMEOUT, 'OpenAI request timed out', true, cause);
     }
 
-    if (err.status === 401) {
+    if (status === 401) {
       return new AppError(ErrorCode.AUTH_FAILED, 'OpenAI authentication failed', false, cause);
     }
 
-    if (err.status === 429) {
+    if (status === 429) {
       return new AppError(ErrorCode.RATE_LIMIT, 'OpenAI rate limit exceeded', true, cause);
     }
 
-    const message = err.message ?? 'Unknown error';
     return new AppError(ErrorCode.PROVIDER_ERROR, `OpenAI API error: ${message}`, true, cause);
   }
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const s = (error as { status: unknown }).status;
+    return typeof s === 'number' ? s : undefined;
+  }
+  return undefined;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const c = (error as { code: unknown }).code;
+    return typeof c === 'string' ? c : undefined;
+  }
+  return undefined;
+}
+
+function getErrorName(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.name;
+  }
+  if (typeof error === 'object' && error !== null && 'name' in error) {
+    const n = (error as { name: unknown }).name;
+    return typeof n === 'string' ? n : undefined;
+  }
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const m = (error as { message: unknown }).message;
+    return typeof m === 'string' ? m : 'Unknown error';
+  }
+  return 'Unknown error';
 }

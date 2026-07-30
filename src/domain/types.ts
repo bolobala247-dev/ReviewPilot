@@ -8,7 +8,7 @@ export enum ReviewSeverity {
 export interface FileDiff {
   filename: string;
   language: string;
-  patch: string;
+  patch?: string | undefined;
   additions: number;
   deletions: number;
 }
@@ -18,7 +18,7 @@ export interface ReviewComment {
   line: number;
   severity: ReviewSeverity;
   message: string;
-  suggestion?: string;
+  suggestion?: string | undefined;
 }
 
 export interface ReviewReport {

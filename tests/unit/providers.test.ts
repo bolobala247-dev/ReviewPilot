@@ -74,8 +74,9 @@ describe('AI Provider Layer', () => {
       const res = await adapter.review(sampleRequest);
 
       expect(res.content).toBe('{"comments": []}');
-      expect(res.tokensUsed).toBe(150);
-      expect(res.model).toBe('gpt-4o');
+      expect(res.metadata.tokensUsed).toBe(150);
+      expect(res.metadata.model).toBe('gpt-4o');
+      expect(res.metadata.provider).toBe('openai');
     });
 
     it('should handle missing token usage gracefully', async () => {
@@ -88,7 +89,7 @@ describe('AI Provider Layer', () => {
       const res = await adapter.review(sampleRequest);
 
       expect(res.content).toBe('raw response text');
-      expect(res.tokensUsed).toBe(0);
+      expect(res.metadata.tokensUsed).toBe(0);
     });
 
     it('should handle empty response content', async () => {
@@ -159,8 +160,9 @@ describe('AI Provider Layer', () => {
       const res = await adapter.review(sampleRequest);
 
       expect(res.content).toBe('{"gemini": "result"}');
-      expect(res.tokensUsed).toBe(200);
-      expect(res.model).toBe('gemini-1.5-pro');
+      expect(res.metadata.tokensUsed).toBe(200);
+      expect(res.metadata.model).toBe('gemini-1.5-pro');
+      expect(res.metadata.provider).toBe('gemini');
     });
 
     it('should handle timeout in GeminiAdapter', async () => {
@@ -207,7 +209,8 @@ describe('AI Provider Layer', () => {
       const res = await adapter.review(sampleRequest);
 
       expect(res.content).toBe('First block.\nSecond block.');
-      expect(res.tokensUsed).toBe(150);
+      expect(res.metadata.tokensUsed).toBe(150);
+      expect(res.metadata.provider).toBe('anthropic');
     });
 
     it('should handle missing token usage in Anthropic', async () => {
@@ -223,7 +226,7 @@ describe('AI Provider Layer', () => {
       const res = await adapter.review(sampleRequest);
 
       expect(res.content).toBe('Single text');
-      expect(res.tokensUsed).toBe(0);
+      expect(res.metadata.tokensUsed).toBe(0);
     });
   });
 

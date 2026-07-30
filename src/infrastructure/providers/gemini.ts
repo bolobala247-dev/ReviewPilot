@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
+import { IAIProvider, AIReviewRequest, AIResponse } from '@domain/ports';
 import { AppError, ErrorCode } from '@domain/errors';
 import { logger } from '../logger';
 
@@ -11,7 +11,7 @@ export interface GeminiAdapterConfig {
 }
 
 export class GeminiAdapter implements IAIProvider {
-  readonly name = 'gemini';
+  readonly name = 'gemini' as const;
   private readonly client: GoogleGenerativeAI;
   private readonly model: string;
   private readonly defaultTemperature: number;
@@ -27,7 +27,7 @@ export class GeminiAdapter implements IAIProvider {
     this.timeoutMs = config.timeoutMs ?? 30000;
   }
 
-  async review(request: AIReviewRequest): Promise<AIReviewResponse> {
+  async review(request: AIReviewRequest): Promise<AIResponse> {
     const startTime = Date.now();
     try {
       const model = this.client.getGenerativeModel({
@@ -61,8 +61,12 @@ export class GeminiAdapter implements IAIProvider {
 
       return {
         content,
-        tokensUsed,
-        model: this.model,
+        metadata: {
+          provider: this.name,
+          model: this.model,
+          tokensUsed,
+          durationMs,
+        },
       };
     } catch (error: unknown) {
       if (error instanceof AppError) {
@@ -73,22 +77,53 @@ export class GeminiAdapter implements IAIProvider {
   }
 
   private handleError(error: unknown): AppError {
-    const err = error as { status?: number; message?: string; name?: string };
+    const status = getErrorStatus(error);
+    const name = getErrorName(error);
+    const message = getErrorMessage(error);
     const cause = error instanceof Error ? error : undefined;
 
-    if (err.name === 'AbortError' || err.message?.includes('timeout')) {
+    if (name === 'AbortError' || message.includes('timeout')) {
       return new AppError(ErrorCode.TIMEOUT, 'Gemini request timed out', true, cause);
     }
 
-    if (err.status === 401 || err.message?.includes('API key')) {
+    if (status === 401 || message.includes('API key')) {
       return new AppError(ErrorCode.AUTH_FAILED, 'Gemini authentication failed', false, cause);
     }
 
-    if (err.status === 429 || err.message?.includes('429')) {
+    if (status === 429 || message.includes('429')) {
       return new AppError(ErrorCode.RATE_LIMIT, 'Gemini rate limit exceeded', true, cause);
     }
 
-    const message = err.message ?? 'Unknown error';
     return new AppError(ErrorCode.PROVIDER_ERROR, `Gemini API error: ${message}`, true, cause);
   }
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const s = (error as { status: unknown }).status;
+    return typeof s === 'number' ? s : undefined;
+  }
+  return undefined;
+}
+
+function getErrorName(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.name;
+  }
+  if (typeof error === 'object' && error !== null && 'name' in error) {
+    const n = (error as { name: unknown }).name;
+    return typeof n === 'string' ? n : undefined;
+  }
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const m = (error as { message: unknown }).message;
+    return typeof m === 'string' ? m : 'Unknown error';
+  }
+  return 'Unknown error';
 }

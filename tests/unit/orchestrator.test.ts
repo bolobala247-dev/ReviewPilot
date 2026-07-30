@@ -7,13 +7,17 @@ import { AppConfig } from '@infrastructure/config';
 describe('ReviewOrchestrator', () => {
   it('should orchestrate review successfully', async () => {
     const mockProvider: IAIProvider = {
-      name: 'mock-provider',
+      name: 'openai',
       review: vi.fn().mockResolvedValue({
         content: JSON.stringify({
           comments: [{ line: 10, severity: 'SUGGESTION', message: 'Use const' }],
         }),
-        tokensUsed: 150,
-        model: 'mock-model',
+        metadata: {
+          provider: 'openai',
+          model: 'mock-model',
+          tokensUsed: 150,
+          durationMs: 10,
+        },
       }),
     };
 
@@ -33,7 +37,13 @@ describe('ReviewOrchestrator', () => {
     } as unknown as GitHubAdapter;
 
     const mockConfig: AppConfig = {
-      ai: { provider: 'openai', apiKey: 'test', model: 'test-model', temperature: 0.1 },
+      ai: {
+        provider: 'openai',
+        apiKey: 'test',
+        model: 'test-model',
+        temperature: 0.1,
+        timeoutMs: 30000,
+      },
       github: { token: 'test' },
       review: { concurrency: 2, maxFileSizeBytes: 1000, ignorePatterns: [] },
       logging: { level: 'error' },
@@ -45,7 +55,7 @@ describe('ReviewOrchestrator', () => {
       owner: 'octocat',
       repo: 'hello-world',
       prNumber: 1,
-      provider: 'mock-provider',
+      provider: 'openai',
     });
 
     expect(report.repo).toBe('octocat/hello-world');

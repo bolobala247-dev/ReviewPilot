@@ -79,16 +79,14 @@ export class ReviewOrchestrator {
             }),
           );
 
-          totalTokens += response.tokensUsed;
+          const tokensUsed = response.metadata.tokensUsed ?? 0;
+          totalTokens += tokensUsed;
           const comments = parseResponse(response.content, file.filename);
 
           allComments.push(...comments);
           reviewedFiles.push(file.filename);
 
-          fileLog.info(
-            { commentsCount: comments.length, tokensUsed: response.tokensUsed },
-            'File review complete',
-          );
+          fileLog.info({ commentsCount: comments.length, tokensUsed }, 'File review complete');
         } catch (err: unknown) {
           const error = err as Error;
           fileLog.error({ error: error.message }, 'Failed to review file, skipping');
