@@ -121,18 +121,16 @@ export async function runCli(args: string[]): Promise<number> {
 
     if (parsedArgs.verbose) {
       logger.level = 'debug';
-      logger.debug(
-        {
-          owner: parsedArgs.owner,
-          repo: parsedArgs.repo,
-          pr: parsedArgs.prNumber,
-          provider: parsedArgs.provider,
-        },
-        'CLI startup configuration',
-      );
     }
 
-    const { orchestrator } = bootstrap(parsedArgs);
+    const { orchestrator, config } = bootstrap(parsedArgs);
+
+    if (parsedArgs.verbose) {
+      console.log('✓ Configuration loaded');
+      console.log(`✓ AI Provider: ${config.ai.provider}`);
+      console.log(`✓ GitHub token detected: ${config.github.token ? 'YES' : 'NO'}`);
+      console.log(`✓ AI API key detected: ${config.ai.apiKey ? 'YES' : 'NO'}`);
+    }
 
     const report = await orchestrator.review({
       owner: parsedArgs.owner,
