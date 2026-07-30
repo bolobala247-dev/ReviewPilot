@@ -8,7 +8,7 @@ export interface GitHubConfig {
 }
 
 export class GitHubAdapter {
-  private octokit: Octokit;
+  private readonly octokit: Octokit;
 
   constructor(config: GitHubConfig) {
     this.octokit = new Octokit({ auth: config.token });
@@ -19,16 +19,16 @@ export class GitHubAdapter {
     repo: string,
     prNumber: number,
   ): Promise<{ prTitle: string; files: FileDiff[] }> {
-    try {
-      logger.info({ owner, repo, prNumber }, 'Fetching PR metadata and diffs from GitHub');
+    logger.info({ owner, repo, prNumber }, 'Fetching PR metadata and files from GitHub');
 
+    try {
       const { data: pr } = await this.octokit.pulls.get({
         owner,
         repo,
         pull_number: prNumber,
       });
 
-      const { data: pullFiles } = await this.octokit.pulls.listFiles({
+      const pullFiles = await this.octokit.paginate(this.octokit.pulls.listFiles, {
         owner,
         repo,
         pull_number: prNumber,
@@ -37,45 +37,68 @@ export class GitHubAdapter {
 
       const files: FileDiff[] = pullFiles.map((file) => ({
         filename: file.filename,
-        language: detectLanguage(file.filename),
+        language: getFileLanguage(file.filename),
         patch: file.patch ?? '',
         additions: file.additions,
         deletions: file.deletions,
       }));
+
+      logger.info(
+        { owner, repo, prNumber, fileCount: files.length },
+        'Successfully fetched PR metadata and files',
+      );
 
       return {
         prTitle: pr.title,
         files,
       };
     } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      if (err.status === 404) {
-        throw new AppError(
-          ErrorCode.GITHUB_ERROR,
-          `Pull Request ${owner}/${repo}#${prNumber} not found`,
-          false,
-          error as Error,
-        );
-      }
-      if (err.status === 401 || err.status === 403) {
-        throw new AppError(
-          ErrorCode.AUTH_FAILED,
-          `GitHub authentication/permissions error for ${owner}/${repo}`,
-          false,
-          error as Error,
-        );
-      }
-      throw new AppError(
+      throw this.handleOctokitError(error, owner, repo, prNumber);
+    }
+  }
+
+  private handleOctokitError(
+    error: unknown,
+    owner: string,
+    repo: string,
+    prNumber: number,
+  ): AppError {
+    const err = error as { status?: number; message?: string };
+    const cause = error instanceof Error ? error : undefined;
+
+    if (err.status === 404) {
+      return new AppError(
         ErrorCode.GITHUB_ERROR,
-        `Failed to fetch PR ${owner}/${repo}#${prNumber}: ${err.message}`,
-        true,
-        error as Error,
+        `Pull Request ${owner}/${repo}#${prNumber} not found`,
+        false,
+        cause,
       );
     }
+
+    if (err.status === 401 || err.status === 403) {
+      return new AppError(
+        ErrorCode.AUTH_FAILED,
+        `GitHub authentication/permissions error for ${owner}/${repo}`,
+        false,
+        cause,
+      );
+    }
+
+    if (err.status === 429) {
+      return new AppError(ErrorCode.RATE_LIMIT, 'GitHub API rate limit exceeded', true, cause);
+    }
+
+    const message = err.message ?? 'Unknown error';
+    return new AppError(
+      ErrorCode.GITHUB_ERROR,
+      `Failed to fetch PR ${owner}/${repo}#${prNumber}: ${message}`,
+      true,
+      cause,
+    );
   }
 }
 
-function detectLanguage(filename: string): string {
+function getFileLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   const langMap: Record<string, string> = {
     ts: 'typescript',
