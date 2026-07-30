@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { IAIProvider } from '@domain/ports';
 import { ReviewRequest, ReviewReport, ReviewComment } from '@domain/types';
 import { GitHubAdapter } from '@infrastructure/github';
@@ -7,7 +5,6 @@ import { AppConfig } from '@infrastructure/config';
 import { parseDiff, filterFiles } from './diff-parser';
 import { buildPrompt } from './prompt-builder';
 import { parseResponse } from './response-parser';
-import { retry } from '@infrastructure/retry';
 import { logger } from '@infrastructure/logger';
 
 export class ReviewOrchestrator {
@@ -17,7 +14,7 @@ export class ReviewOrchestrator {
     private config: AppConfig,
   ) {}
 
-  async run(request: ReviewRequest): Promise<ReviewReport> {
+  async review(request: ReviewRequest): Promise<ReviewReport> {
     const startTime = Date.now();
     const log = logger.child({
       repo: `${request.owner}/${request.repo}`,
@@ -40,77 +37,74 @@ export class ReviewOrchestrator {
       this.config.review.maxFileSizeBytes,
     );
 
-    log.info(
-      { totalFiles: parsedFiles.length, keepCount: keep.length, skipCount: skip.length },
-      'Files filtered for review',
-    );
-
-    const { systemPromptTemplate, userPromptTemplate } = this.loadPromptTemplates();
-
-    const allComments: ReviewComment[] = [];
-    const reviewedFiles: string[] = [];
     const skippedFiles: string[] = [...skip];
-    let totalTokens = 0;
 
-    const concurrency = this.config.review.concurrency;
-    const queue = [...keep];
+    if (keep.length === 0) {
+      const durationMs = Date.now() - startTime;
+      log.info(
+        { reviewedCount: 0, commentsCount: 0, durationMs },
+        'Review workflow completed with zero files to review',
+      );
 
-    const worker = async () => {
-      while (queue.length > 0) {
-        const file = queue.shift();
-        if (!file) break;
+      return {
+        repo: `${request.owner}/${request.repo}`,
+        prNumber: request.prNumber,
+        prTitle: prData.prTitle,
+        comments: [],
+        summary: `Reviewed 0 file(s) across ${prData.files.length} changed file(s). Found 0 finding(s).`,
+        reviewedFiles: [],
+        skippedFiles,
+        metadata: {
+          provider: this.provider.name,
+          model: this.config.ai.model,
+          totalTokens: 0,
+          durationMs,
+          timestamp: new Date().toISOString(),
+          parseSucceeded: true,
+          parserStatus: 'success',
+        },
+      };
+    }
 
-        const fileLog = log.child({ file: file.filename });
-        fileLog.info('Reviewing file diff');
+    const { systemPrompt, userPrompt } = buildPrompt({
+      prTitle: prData.prTitle,
+      files: keep,
+      limits: {
+        maxFileSizeBytes: this.config.review.maxFileSizeBytes,
+      } as unknown as { maxFiles?: number; maxTotalChars?: number },
+    });
 
-        try {
-          const { systemPrompt, userPrompt } = buildPrompt({
-            prTitle: prData.prTitle,
-            files: [file],
-            systemTemplate: systemPromptTemplate,
-            userTemplate: userPromptTemplate,
-          });
+    const response = await this.provider.review({
+      systemPrompt,
+      userPrompt,
+      temperature: this.config.ai.temperature,
+    });
 
-          const response = await retry(() =>
-            this.provider.review({
-              systemPrompt,
-              userPrompt,
-              temperature: this.config.ai.temperature,
-            }),
-          );
+    const defaultFilename = keep[0]?.filename ?? 'unknown';
+    const comments: ReviewComment[] = parseResponse(response.content, defaultFilename);
 
-          const tokensUsed = response.metadata.tokensUsed ?? 0;
-          totalTokens += tokensUsed;
-          const comments = parseResponse(response.content, file.filename);
+    const parseSucceeded =
+      response.content.trim() === ''
+        ? true
+        : comments.length > 0 || isSuccessEmptyComments(response.content);
 
-          allComments.push(...comments);
-          reviewedFiles.push(file.filename);
-
-          fileLog.info({ commentsCount: comments.length, tokensUsed }, 'File review complete');
-        } catch (err: unknown) {
-          const error = err as Error;
-          fileLog.error({ error: error.message }, 'Failed to review file, skipping');
-          skippedFiles.push(`${file.filename} (error: ${error.message})`);
-        }
-      }
-    };
-
-    const workers = Array.from({ length: Math.min(concurrency, keep.length) }, () => worker());
-    await Promise.all(workers);
-
+    const parserStatus: 'success' | 'failed' = parseSucceeded ? 'success' : 'failed';
+    const reviewedFiles: string[] = keep.map((f) => f.filename);
+    const totalTokens = response.metadata.tokensUsed ?? 0;
     const durationMs = Date.now() - startTime;
+
     log.info(
-      { reviewedCount: reviewedFiles.length, commentsCount: allComments.length, durationMs },
+      { reviewedCount: reviewedFiles.length, commentsCount: comments.length, durationMs },
       'Review workflow completed',
     );
 
-    const summary = `Reviewed ${reviewedFiles.length} file(s) across ${prData.files.length} changed file(s). Found ${allComments.length} finding(s).`;
+    const summary = `Reviewed ${reviewedFiles.length} file(s) across ${prData.files.length} changed file(s). Found ${comments.length} finding(s).`;
 
     return {
       repo: `${request.owner}/${request.repo}`,
       prNumber: request.prNumber,
       prTitle: prData.prTitle,
-      comments: allComments,
+      comments,
       summary,
       reviewedFiles,
       skippedFiles,
@@ -120,23 +114,22 @@ export class ReviewOrchestrator {
         totalTokens,
         durationMs,
         timestamp: new Date().toISOString(),
+        parseSucceeded,
+        parserStatus,
       },
     };
   }
+}
 
-  private loadPromptTemplates(): { systemPromptTemplate: string; userPromptTemplate: string } {
-    const rootDir = process.cwd();
-    const systemPath = path.join(rootDir, 'prompts', 'system.md');
-    const userPath = path.join(rootDir, 'prompts', 'review-file.md');
-
-    const systemPromptTemplate = fs.existsSync(systemPath)
-      ? fs.readFileSync(systemPath, 'utf8')
-      : 'You are an expert AI code reviewer. Return structured JSON with comments.';
-
-    const userPromptTemplate = fs.existsSync(userPath)
-      ? fs.readFileSync(userPath, 'utf8')
-      : 'Review file {{filename}}:\n```diff\n{{patch}}\n```';
-
-    return { systemPromptTemplate, userPromptTemplate };
+function isSuccessEmptyComments(content: string): boolean {
+  try {
+    const cleaned = content
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    return typeof parsed === 'object' && parsed !== null && Array.isArray(parsed.comments);
+  } catch {
+    return false;
   }
 }

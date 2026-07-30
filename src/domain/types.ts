@@ -35,6 +35,8 @@ export interface ReviewReport {
     totalTokens: number;
     durationMs: number;
     timestamp: string;
+    parseSucceeded?: boolean | undefined;
+    parserStatus?: 'success' | 'failed' | undefined;
   };
 }
 

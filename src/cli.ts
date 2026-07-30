@@ -30,7 +30,7 @@ async function main() {
 
   try {
     const { orchestrator } = bootstrap(options.provider);
-    const report = await orchestrator.run({
+    const report = await orchestrator.review({
       owner: options.owner,
       repo: options.repo,
       prNumber: options.pr,

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { FileDiff } from '@domain/types';
 
 export interface PromptLimits {
@@ -8,8 +10,8 @@ export interface PromptLimits {
 export interface BuildPromptOptions {
   prTitle: string;
   files: readonly FileDiff[];
-  systemTemplate: string;
-  userTemplate: string;
+  systemTemplate?: string | undefined;
+  userTemplate?: string | undefined;
   limits?: PromptLimits;
 }
 
@@ -26,7 +28,11 @@ export function buildPrompt(options: BuildPromptOptions): PromptResult {
   const maxFiles = options.limits?.maxFiles ?? DEFAULT_MAX_FILES;
   const maxTotalChars = options.limits?.maxTotalChars ?? DEFAULT_MAX_TOTAL_CHARS;
 
-  const systemPrompt = options.systemTemplate.trim();
+  const defaultTemplates = loadDefaultTemplates();
+  const systemTemplateStr = options.systemTemplate ?? defaultTemplates.systemTemplate;
+  const userTemplateStr = options.userTemplate ?? defaultTemplates.userTemplate;
+
+  const systemPrompt = systemTemplateStr.trim();
 
   let truncated = false;
   const filesToInclude = options.files.slice(0, maxFiles);
@@ -58,7 +64,7 @@ export function buildPrompt(options: BuildPromptOptions): PromptResult {
 
   const filesContent = fileBlocks.join('\n\n');
 
-  const userPrompt = options.userTemplate
+  const userPrompt = userTemplateStr
     .split('{{PR_TITLE}}')
     .join(options.prTitle)
     .split('{{FILES}}')
@@ -70,6 +76,22 @@ export function buildPrompt(options: BuildPromptOptions): PromptResult {
     userPrompt,
     truncated,
   };
+}
+
+function loadDefaultTemplates(): { systemTemplate: string; userTemplate: string } {
+  const rootDir = process.cwd();
+  const systemPath = path.join(rootDir, 'prompts', 'system.md');
+  const userPath = path.join(rootDir, 'prompts', 'review-file.md');
+
+  const systemTemplate = fs.existsSync(systemPath)
+    ? fs.readFileSync(systemPath, 'utf8')
+    : 'You are an expert AI code reviewer. Return structured JSON with comments.';
+
+  const userTemplate = fs.existsSync(userPath)
+    ? fs.readFileSync(userPath, 'utf8')
+    : 'Please review the following Pull Request:\n\nPR Title: {{PR_TITLE}}\n\nChanged Files:\n\n{{FILES}}';
+
+  return { systemTemplate, userTemplate };
 }
 
 function formatSingleFile(file: FileDiff): string {

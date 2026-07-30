@@ -4,7 +4,7 @@ export function parseDiff(rawFiles: FileDiff[]): FileDiff[] {
   return rawFiles.map((file) => ({
     filename: file.filename,
     language: file.language || 'plaintext',
-    patch: file.patch || '',
+    patch: file.patch,
     additions: file.additions || 0,
     deletions: file.deletions || 0,
   }));
@@ -40,7 +40,7 @@ export function filterFiles(
   return { keep, skip };
 }
 
-function shouldIgnore(filename: string, patterns: string[]): boolean {
+function shouldIgnore(filename: string, patterns: string[]): string | boolean {
   for (const pattern of patterns) {
     const regexPattern = pattern
       .replace(/\./g, '\\.')
