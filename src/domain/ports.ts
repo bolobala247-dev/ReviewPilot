@@ -10,6 +10,8 @@ export interface AIResponseMetadata {
   provider: AIProvider;
   model: string;
   tokensUsed?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   durationMs?: number;
 }
 

@@ -52,6 +52,8 @@ export class GeminiAdapter implements IAIProvider {
 
       const content = response.text() ?? '';
       const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+      const inputTokens = response.usageMetadata?.promptTokenCount ?? 0;
+      const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
       const durationMs = Date.now() - startTime;
 
       logger.info(
@@ -65,6 +67,8 @@ export class GeminiAdapter implements IAIProvider {
           provider: this.name,
           model: this.model,
           tokensUsed,
+          inputTokens,
+          outputTokens,
           durationMs,
         },
       };

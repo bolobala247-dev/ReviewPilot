@@ -2,7 +2,28 @@
 
 Benchmark framework for evaluating **ReviewPilot** against real-world GitHub Pull Requests. It measures review quality (precision, hallucinations, coverage) and cost (tokens, time) across AI providers (OpenAI, Gemini, Anthropic).
 
-> **Status**: Framework and dataset only. Automated benchmark execution is **not implemented yet** — runs are performed manually via the CLI (see below).
+> **Status**: Dataset + automated runner (Phase 10.2). The runner executes all cases and collects raw metrics; AI quality scoring (Precision, Hallucination Rate, etc.) is still performed manually.
+
+---
+
+## Automated Execution (Phase 10.2)
+
+Run all benchmark cases from `prs.json` with the configured provider:
+
+```bash
+pnpm bench
+```
+
+The runner:
+
+- Reads every case from `prs.json`, fetches the PR, and executes ReviewPilot
+- Saves one JSON result per case to `results/<owner>-<repo>-<pr>.json` containing: `provider`, `model`, `durationMs`, `inputTokens`, `outputTokens`, `findings`, `skippedFiles`, `timestamp`
+- Continues to the next case if one fails (failed cases are recorded with `status: "failed"` and an `error` message)
+- Prints a final summary (per-case status + aggregate totals) and exits non-zero if any case failed
+
+Provider/model are taken from `.env` (`AICR_AI_PROVIDER`, `AICR_AI_MODEL`). To compare providers, run `pnpm bench` once per provider configuration.
+
+> The runner only executes and collects metrics — it does **not** evaluate AI quality. Quality scoring remains manual (see below).
 
 ---
 
@@ -167,7 +188,7 @@ These thresholds are the initial baseline (`v1.0.0` of the dataset) and should b
 
 ## Roadmap
 
-- [ ] Phase 10.2 — Automated benchmark runner (`pnpm bench`) executing all cases from `prs.json`
+- [x] Phase 10.2 — Automated benchmark runner (`pnpm bench`) executing all cases from `prs.json`
 - [ ] Automated result diffing against `knownIssues` ground truth
 - [ ] Token/cost capture from provider usage APIs into structured JSON results
 - [ ] CI regression gate: fail when Precision drops below baseline

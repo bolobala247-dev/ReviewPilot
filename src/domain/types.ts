@@ -33,6 +33,8 @@ export interface ReviewReport {
     provider: string;
     model: string;
     totalTokens: number;
+    inputTokens?: number | undefined;
+    outputTokens?: number | undefined;
     durationMs: number;
     timestamp: string;
     parseSucceeded?: boolean | undefined;

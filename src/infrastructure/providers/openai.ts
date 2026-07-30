@@ -51,6 +51,8 @@ export class OpenAIAdapter implements IAIProvider {
       const firstChoice = response.choices[0];
       const content = firstChoice?.message?.content ?? '';
       const tokensUsed = response.usage?.total_tokens ?? 0;
+      const inputTokens = response.usage?.prompt_tokens ?? 0;
+      const outputTokens = response.usage?.completion_tokens ?? 0;
       const durationMs = Date.now() - startTime;
 
       logger.info(
@@ -64,6 +66,8 @@ export class OpenAIAdapter implements IAIProvider {
           provider: this.name,
           model: this.model,
           tokensUsed,
+          inputTokens,
+          outputTokens,
           durationMs,
         },
       };

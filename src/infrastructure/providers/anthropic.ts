@@ -51,7 +51,9 @@ export class AnthropicAdapter implements IAIProvider {
         .map((block) => block.text);
 
       const content = textBlocks.join('\n');
-      const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+      const inputTokens = response.usage?.input_tokens ?? 0;
+      const outputTokens = response.usage?.output_tokens ?? 0;
+      const tokensUsed = inputTokens + outputTokens;
       const durationMs = Date.now() - startTime;
 
       logger.info(
@@ -65,6 +67,8 @@ export class AnthropicAdapter implements IAIProvider {
           provider: this.name,
           model: this.model,
           tokensUsed,
+          inputTokens,
+          outputTokens,
           durationMs,
         },
       };
