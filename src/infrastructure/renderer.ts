@@ -1,4 +1,4 @@
-import { ReviewReport, ReviewSeverity } from '../domain/types';
+import { ReviewReport, ReviewSeverity } from '@domain/types';
 
 export function renderMarkdown(report: ReviewReport): string {
   const lines: string[] = [];
@@ -16,9 +16,13 @@ export function renderMarkdown(report: ReviewReport): string {
   lines.push(`- **Total Tokens:** ${report.metadata.totalTokens}`);
   lines.push(`- **Duration:** ${report.metadata.durationMs}ms`);
   lines.push(`- **Timestamp:** ${report.metadata.timestamp}`);
-  lines.push(`- **Reviewed Files (${report.reviewedFiles.length}):** ${report.reviewedFiles.join(', ') || 'None'}`);
+  lines.push(
+    `- **Reviewed Files (${report.reviewedFiles.length}):** ${report.reviewedFiles.join(', ') || 'None'}`,
+  );
   if (report.skippedFiles.length > 0) {
-    lines.push(`- **Skipped Files (${report.skippedFiles.length}):** ${report.skippedFiles.join(', ')}`);
+    lines.push(
+      `- **Skipped Files (${report.skippedFiles.length}):** ${report.skippedFiles.join(', ')}`,
+    );
   }
   lines.push('');
 
@@ -30,7 +34,6 @@ export function renderMarkdown(report: ReviewReport): string {
     return lines.join('\n');
   }
 
-  // Group by file
   const commentsByFile = new Map<string, typeof report.comments>();
   for (const comment of report.comments) {
     const list = commentsByFile.get(comment.file) ?? [];

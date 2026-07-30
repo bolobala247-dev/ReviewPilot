@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { IAIProvider, AIReviewRequest, AIReviewResponse } from '../../domain/ports';
-import { AppError, ErrorCode } from '../../domain/errors';
+import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
+import { AppError, ErrorCode } from '@domain/errors';
 
 export interface OpenAIAdapterConfig {
   apiKey: string;
@@ -40,17 +40,38 @@ export class OpenAIAdapter implements IAIProvider {
         tokensUsed,
         model: this.model,
       };
-    } catch (error: any) {
-      if (error.status === 429) {
-        throw new AppError(ErrorCode.RATE_LIMIT, 'OpenAI rate limit exceeded', true, error);
+    } catch (error: unknown) {
+      const err = error as { status?: number; code?: string; message?: string };
+      if (err.status === 429) {
+        throw new AppError(
+          ErrorCode.RATE_LIMIT,
+          'OpenAI rate limit exceeded',
+          true,
+          error as Error,
+        );
       }
-      if (error.status === 401) {
-        throw new AppError(ErrorCode.AUTH_FAILED, 'OpenAI authentication failed', false, error);
+      if (err.status === 401) {
+        throw new AppError(
+          ErrorCode.AUTH_FAILED,
+          'OpenAI authentication failed',
+          false,
+          error as Error,
+        );
       }
-      if (error.code === 'ETIMEDOUT' || error.status >= 500) {
-        throw new AppError(ErrorCode.TIMEOUT, 'OpenAI connection timeout/error', true, error);
+      if (err.code === 'ETIMEDOUT' || (err.status && err.status >= 500)) {
+        throw new AppError(
+          ErrorCode.TIMEOUT,
+          'OpenAI connection timeout/error',
+          true,
+          error as Error,
+        );
       }
-      throw new AppError(ErrorCode.PROVIDER_ERROR, `OpenAI API error: ${error.message}`, true, error);
+      throw new AppError(
+        ErrorCode.PROVIDER_ERROR,
+        `OpenAI API error: ${err.message}`,
+        true,
+        error as Error,
+      );
     }
   }
 }

@@ -1,4 +1,4 @@
-import { FileDiff } from '../domain/types';
+import { FileDiff } from '@domain/types';
 
 export interface PromptResult {
   systemPrompt: string;

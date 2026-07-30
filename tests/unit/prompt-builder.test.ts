@@ -1,5 +1,6 @@
-import { buildPrompt } from '../../src/application/prompt-builder';
-import { FileDiff } from '../../src/domain/types';
+import { describe, it, expect } from 'vitest';
+import { buildPrompt } from '@application/prompt-builder';
+import { FileDiff } from '@domain/types';
 
 describe('PromptBuilder', () => {
   it('should interpolate variables into prompt templates', () => {

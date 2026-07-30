@@ -3,7 +3,7 @@
 > **Status**: Draft  
 > **Author**: Architecture Review  
 > **Date**: 2026-07-30  
-> **Stack**: Node.js · TypeScript · Clean Architecture  
+> **Stack**: Node.js · TypeScript · Clean Architecture
 
 ---
 
@@ -53,13 +53,13 @@ graph TB
 
 ### Architectural Principles
 
-| Principle | Application |
-|-----------|-------------|
-| **Single Responsibility** | Each module owns exactly one reason to change |
-| **Open/Closed** | New AI providers are added without modifying orchestrator code |
-| **Liskov Substitution** | All AI adapters are interchangeable behind `IAIProvider` |
-| **Interface Segregation** | Narrow, role-specific port interfaces instead of fat contracts |
-| **Dependency Inversion** | Core logic depends on abstractions (ports), not concrete adapters |
+| Principle                 | Application                                                       |
+| ------------------------- | ----------------------------------------------------------------- |
+| **Single Responsibility** | Each module owns exactly one reason to change                     |
+| **Open/Closed**           | New AI providers are added without modifying orchestrator code    |
+| **Liskov Substitution**   | All AI adapters are interchangeable behind `IAIProvider`          |
+| **Interface Segregation** | Narrow, role-specific port interfaces instead of fat contracts    |
+| **Dependency Inversion**  | Core logic depends on abstractions (ports), not concrete adapters |
 
 ---
 
@@ -178,60 +178,60 @@ ai-code-review-orchestrator/
 
 ### Domain Layer
 
-| Module | Responsibility |
-|--------|---------------|
-| **`PullRequest`** | Aggregate root representing a PR — number, repo, branch, author, list of `FileDiff` entries. Enforces invariants (e.g., PR must have at least one diff). |
-| **`FileDiff`** | Value object encapsulating a single file's diff — filename, language, hunks, additions, deletions. Immutable. |
-| **`ReviewComment`** | Value object for a single review finding — file, line range, severity, message, suggested fix, confidence score. |
-| **`ReviewReport`** | Entity aggregating all `ReviewComment` entries for a PR — overall summary, risk score, statistics, metadata. |
-| **`ReviewSeverity`** | Enum defining severity levels: `CRITICAL`, `WARNING`, `SUGGESTION`, `PRAISE`. |
-| **`ISourceControlProvider`** | Port interface for fetching PR data and posting review results. |
-| **`IAIProvider`** | Port interface for sending prompts and receiving structured review responses. |
-| **`IReportRenderer`** | Port interface for rendering `ReviewReport` into various output formats. |
-| **`ICacheProvider`** | Port interface for caching review results and API responses. |
-| **`ILogger`** | Port interface for structured logging (decouples from any logging library). |
-| **`ReviewPolicy`** | Domain rules — max file size to review, glob patterns to ignore, file-type-specific rules. |
-| **`ChunkingPolicy`** | Rules for splitting diffs that exceed provider token limits. |
+| Module                       | Responsibility                                                                                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`PullRequest`**            | Aggregate root representing a PR — number, repo, branch, author, list of `FileDiff` entries. Enforces invariants (e.g., PR must have at least one diff). |
+| **`FileDiff`**               | Value object encapsulating a single file's diff — filename, language, hunks, additions, deletions. Immutable.                                            |
+| **`ReviewComment`**          | Value object for a single review finding — file, line range, severity, message, suggested fix, confidence score.                                         |
+| **`ReviewReport`**           | Entity aggregating all `ReviewComment` entries for a PR — overall summary, risk score, statistics, metadata.                                             |
+| **`ReviewSeverity`**         | Enum defining severity levels: `CRITICAL`, `WARNING`, `SUGGESTION`, `PRAISE`.                                                                            |
+| **`ISourceControlProvider`** | Port interface for fetching PR data and posting review results.                                                                                          |
+| **`IAIProvider`**            | Port interface for sending prompts and receiving structured review responses.                                                                            |
+| **`IReportRenderer`**        | Port interface for rendering `ReviewReport` into various output formats.                                                                                 |
+| **`ICacheProvider`**         | Port interface for caching review results and API responses.                                                                                             |
+| **`ILogger`**                | Port interface for structured logging (decouples from any logging library).                                                                              |
+| **`ReviewPolicy`**           | Domain rules — max file size to review, glob patterns to ignore, file-type-specific rules.                                                               |
+| **`ChunkingPolicy`**         | Rules for splitting diffs that exceed provider token limits.                                                                                             |
 
 ### Application Layer
 
-| Module | Responsibility |
-|--------|---------------|
+| Module                   | Responsibility                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`ReviewOrchestrator`** | Central coordinator. Receives a `ReviewRequest`, fetches PR data, fans out file reviews to the AI provider, aggregates results, and returns a `ReviewResult`. This is the primary use case entry point. |
-| **`ReviewPipeline`** | Composable pipeline of stages (filter → chunk → review → aggregate → render). Stages can be added/removed/reordered. |
-| **`DiffParser`** | Parses unified diff format into structured `FileDiff[]` value objects. Handles edge cases like binary files, renames, and permission changes. |
-| **`PromptBuilder`** | Constructs LLM prompts from templates and `FileDiff` data. Supports variable interpolation, language-specific instructions, and provider-specific prompt tuning. |
-| **`ResponseParser`** | Parses raw LLM text/JSON responses into structured `ReviewComment[]`. Handles malformed responses gracefully with fallback parsing. |
-| **`ReportAggregator`** | Merges per-file `ReviewComment[]` arrays into a single `ReviewReport` with summary statistics, deduplication, and severity ranking. |
-| **`ChunkingService`** | Splits large diffs into token-budget-aware chunks. Uses `ChunkingPolicy` rules and provider-specific token limits. |
-| **`EventBus`** | Lightweight pub/sub for decoupled lifecycle events (review started, file reviewed, review completed, error occurred). |
+| **`ReviewPipeline`**     | Composable pipeline of stages (filter → chunk → review → aggregate → render). Stages can be added/removed/reordered.                                                                                    |
+| **`DiffParser`**         | Parses unified diff format into structured `FileDiff[]` value objects. Handles edge cases like binary files, renames, and permission changes.                                                           |
+| **`PromptBuilder`**      | Constructs LLM prompts from templates and `FileDiff` data. Supports variable interpolation, language-specific instructions, and provider-specific prompt tuning.                                        |
+| **`ResponseParser`**     | Parses raw LLM text/JSON responses into structured `ReviewComment[]`. Handles malformed responses gracefully with fallback parsing.                                                                     |
+| **`ReportAggregator`**   | Merges per-file `ReviewComment[]` arrays into a single `ReviewReport` with summary statistics, deduplication, and severity ranking.                                                                     |
+| **`ChunkingService`**    | Splits large diffs into token-budget-aware chunks. Uses `ChunkingPolicy` rules and provider-specific token limits.                                                                                      |
+| **`EventBus`**           | Lightweight pub/sub for decoupled lifecycle events (review started, file reviewed, review completed, error occurred).                                                                                   |
 
 ### Infrastructure Layer
 
-| Module | Responsibility |
-|--------|---------------|
-| **`OpenAIAdapter`** | Implements `IAIProvider` using the OpenAI SDK. Handles chat completions, function calling, and structured output modes. |
-| **`GeminiAdapter`** | Implements `IAIProvider` using the Google Generative AI SDK. |
-| **`AnthropicAdapter`** | Implements `IAIProvider` using the Anthropic SDK. Handles tool use and message-based API. |
-| **`QoderAdapter`** | Implements `IAIProvider` for the Qoder API. |
-| **`MCPAdapter`** | Generic adapter implementing `IAIProvider` via the Model Context Protocol. Allows any MCP-compatible server to serve as a review provider. |
-| **`AIProviderFactory`** | Factory that instantiates the correct `IAIProvider` from a string identifier + config. Supports runtime provider switching. |
-| **`GitHubAdapter`** | Implements `ISourceControlProvider` using Octokit. Fetches PR diffs, file lists, and posts review comments/check runs. |
-| **`MarkdownRenderer`** | Implements `IReportRenderer` — outputs a Markdown-formatted review report. |
-| **`JSONRenderer`** | Implements `IReportRenderer` — outputs machine-readable JSON. |
-| **`GitHubPRRenderer`** | Implements `IReportRenderer` — posts inline comments and a summary directly to the GitHub PR. |
-| **`RetryEngine`** | Generic retry wrapper with exponential backoff, jitter, circuit breaker, and per-provider configuration. |
-| **`ConfigLoader`** | Loads and merges configuration from env vars → YAML files → CLI flags. Validates with Zod schemas. |
-| **`PinoLogger`** | Implements `ILogger` using pino. Structured JSON logging with context binding (PR number, provider, file). |
-| **`Container`** | Lightweight DI container. Wires up all dependencies at bootstrap. Uses tsyringe or a manual registry. |
+| Module                  | Responsibility                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`OpenAIAdapter`**     | Implements `IAIProvider` using the OpenAI SDK. Handles chat completions, function calling, and structured output modes.                    |
+| **`GeminiAdapter`**     | Implements `IAIProvider` using the Google Generative AI SDK.                                                                               |
+| **`AnthropicAdapter`**  | Implements `IAIProvider` using the Anthropic SDK. Handles tool use and message-based API.                                                  |
+| **`QoderAdapter`**      | Implements `IAIProvider` for the Qoder API.                                                                                                |
+| **`MCPAdapter`**        | Generic adapter implementing `IAIProvider` via the Model Context Protocol. Allows any MCP-compatible server to serve as a review provider. |
+| **`AIProviderFactory`** | Factory that instantiates the correct `IAIProvider` from a string identifier + config. Supports runtime provider switching.                |
+| **`GitHubAdapter`**     | Implements `ISourceControlProvider` using Octokit. Fetches PR diffs, file lists, and posts review comments/check runs.                     |
+| **`MarkdownRenderer`**  | Implements `IReportRenderer` — outputs a Markdown-formatted review report.                                                                 |
+| **`JSONRenderer`**      | Implements `IReportRenderer` — outputs machine-readable JSON.                                                                              |
+| **`GitHubPRRenderer`**  | Implements `IReportRenderer` — posts inline comments and a summary directly to the GitHub PR.                                              |
+| **`RetryEngine`**       | Generic retry wrapper with exponential backoff, jitter, circuit breaker, and per-provider configuration.                                   |
+| **`ConfigLoader`**      | Loads and merges configuration from env vars → YAML files → CLI flags. Validates with Zod schemas.                                         |
+| **`PinoLogger`**        | Implements `ILogger` using pino. Structured JSON logging with context binding (PR number, provider, file).                                 |
+| **`Container`**         | Lightweight DI container. Wires up all dependencies at bootstrap. Uses tsyringe or a manual registry.                                      |
 
 ### Entrypoints
 
-| Module | Responsibility |
-|--------|---------------|
-| **`CLI`** | Accepts `--repo`, `--pr`, `--provider` flags. Bootstraps the container and triggers a review. |
+| Module                     | Responsibility                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| **`CLI`**                  | Accepts `--repo`, `--pr`, `--provider` flags. Bootstraps the container and triggers a review.     |
 | **`GitHubWebhookHandler`** | Receives `pull_request.opened` / `synchronize` webhook events and triggers reviews automatically. |
-| **`HttpServer`** | Optional REST API for triggering reviews programmatically. |
+| **`HttpServer`**           | Optional REST API for triggering reviews programmatically.                                        |
 
 ---
 
@@ -313,7 +313,7 @@ interface AIReviewRequest {
   responseFormat?: 'json' | 'text';
   temperature?: number;
   maxResponseTokens?: number;
-  metadata?: Record<string, unknown>;  // Provider-specific pass-through
+  metadata?: Record<string, unknown>; // Provider-specific pass-through
 }
 
 interface AIReviewResponse {
@@ -321,7 +321,7 @@ interface AIReviewResponse {
   usage: TokenUsage;
   model: string;
   latencyMs: number;
-  raw?: unknown;  // Raw provider response for debugging
+  raw?: unknown; // Raw provider response for debugging
 }
 
 interface TokenUsage {
@@ -427,15 +427,15 @@ abstract class BaseError extends Error {
 
 ### Error Handling Rules
 
-| Error Type | Retryable | Action |
-|-----------|-----------|--------|
-| `RateLimitError` | ✅ | Retry with backoff respecting `Retry-After` header |
-| `TokenLimitError` | ✅ | Re-chunk with smaller budget, then retry |
-| `TimeoutError` | ✅ | Retry with increased timeout (up to max) |
-| `AuthenticationError` | ❌ | Fail fast, log, alert |
-| `PRNotFoundError` | ❌ | Fail fast with descriptive message |
-| `ValidationError` | ❌ | Fail fast, return validation details |
-| `ProviderError` (generic) | ✅ | Retry, then fallback to next provider if configured |
+| Error Type                | Retryable | Action                                              |
+| ------------------------- | --------- | --------------------------------------------------- |
+| `RateLimitError`          | ✅        | Retry with backoff respecting `Retry-After` header  |
+| `TokenLimitError`         | ✅        | Re-chunk with smaller budget, then retry            |
+| `TimeoutError`            | ✅        | Retry with increased timeout (up to max)            |
+| `AuthenticationError`     | ❌        | Fail fast, log, alert                               |
+| `PRNotFoundError`         | ❌        | Fail fast with descriptive message                  |
+| `ValidationError`         | ❌        | Fail fast, return validation details                |
+| `ProviderError` (generic) | ✅        | Retry, then fallback to next provider if configured |
 
 ### Graceful Degradation
 
@@ -453,15 +453,15 @@ abstract class BaseError extends Error {
 // infrastructure/retry/RetryEngine.ts
 
 interface RetryConfig {
-  maxAttempts: number;           // Default: 3
-  initialDelayMs: number;        // Default: 1000
-  maxDelayMs: number;            // Default: 30000
-  backoffMultiplier: number;     // Default: 2
-  jitterFactor: number;          // Default: 0.1 (10% jitter)
-  retryableErrors: string[];     // Error codes to retry
+  maxAttempts: number; // Default: 3
+  initialDelayMs: number; // Default: 1000
+  maxDelayMs: number; // Default: 30000
+  backoffMultiplier: number; // Default: 2
+  jitterFactor: number; // Default: 0.1 (10% jitter)
+  retryableErrors: string[]; // Error codes to retry
   circuitBreaker?: {
-    failureThreshold: number;    // Default: 5
-    resetTimeMs: number;         // Default: 60000
+    failureThreshold: number; // Default: 5
+    resetTimeMs: number; // Default: 60000
   };
 }
 
@@ -469,7 +469,7 @@ class RetryEngine {
   async execute<T>(
     operation: () => Promise<T>,
     config: RetryConfig,
-    context: RetryContext
+    context: RetryContext,
   ): Promise<T>;
 }
 ```
@@ -559,12 +559,12 @@ All logs are emitted as JSON for machine parsing:
 
 ### Log Levels & Usage
 
-| Level | Usage |
-|-------|-------|
-| **`debug`** | Raw prompts, raw LLM responses, parsed diff details, cache hits/misses |
-| **`info`** | Review started/completed, file reviewed, report generated, config loaded |
-| **`warn`** | Retry attempts, fallback parsing used, file skipped, partial results |
-| **`error`** | Provider failures, authentication errors, unrecoverable errors |
+| Level       | Usage                                                                    |
+| ----------- | ------------------------------------------------------------------------ |
+| **`debug`** | Raw prompts, raw LLM responses, parsed diff details, cache hits/misses   |
+| **`info`**  | Review started/completed, file reviewed, report generated, config loaded |
+| **`warn`**  | Retry attempts, fallback parsing used, file skipped, partial results     |
+| **`error`** | Provider failures, authentication errors, unrecoverable errors           |
 
 ### Context Binding
 
@@ -620,11 +620,16 @@ const ConfigSchema = z.object({
     maxFileSizeBytes: z.number().default(100_000),
     maxFilesPerReview: z.number().default(50),
     concurrency: z.number().min(1).max(20).default(5),
-    ignorePatterns: z.array(z.string()).default([
-      '**/*.lock', '**/node_modules/**', '**/*.min.js',
-      '**/dist/**', '**/*.generated.*',
-    ]),
-    languages: z.array(z.string()).optional(),  // null = all languages
+    ignorePatterns: z
+      .array(z.string())
+      .default([
+        '**/*.lock',
+        '**/node_modules/**',
+        '**/*.min.js',
+        '**/dist/**',
+        '**/*.generated.*',
+      ]),
+    languages: z.array(z.string()).optional(), // null = all languages
     severity: z.object({
       minLevel: z.enum(['critical', 'warning', 'suggestion', 'praise']).default('suggestion'),
     }),
@@ -642,7 +647,7 @@ const ConfigSchema = z.object({
   // Logging
   logging: z.object({
     level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-    pretty: z.boolean().default(false),  // Human-readable in dev
+    pretty: z.boolean().default(false), // Human-readable in dev
     redactKeys: z.array(z.string()).default(['apiKey', 'token', 'secret']),
   }),
 });
@@ -662,10 +667,10 @@ review:
   maxFilesPerReview: 50
   concurrency: 5
   ignorePatterns:
-    - "**/*.lock"
-    - "**/node_modules/**"
-    - "**/*.min.js"
-    - "**/dist/**"
+    - '**/*.lock'
+    - '**/node_modules/**'
+    - '**/*.min.js'
+    - '**/dist/**'
 
 output:
   format: markdown
@@ -709,18 +714,18 @@ graph LR
         GL["GitLab"]
         BB["Bitbucket"]
         AZ["Azure DevOps"]
-        
+
         LL["Llama (local)"]
         OL["Ollama"]
         CO["Cohere"]
-        
+
         HTML["HTML Report"]
         SL["Slack Notification"]
         JI["Jira Ticket Creation"]
-        
+
         WH["Webhooks"]
         GHA["GitHub Actions"]
-        
+
         PG["PostgreSQL"]
         ES["Elasticsearch"]
     end
@@ -728,38 +733,39 @@ graph LR
     GH -.->|ISourceControlProvider| GL
     GH -.->|ISourceControlProvider| BB
     GH -.->|ISourceControlProvider| AZ
-    
+
     OAI -.->|IAIProvider| LL
     OAI -.->|IAIProvider| OL
     OAI -.->|IAIProvider| CO
-    
+
     MD -.->|IReportRenderer| HTML
     MD -.->|IReportRenderer| SL
     MD -.->|IReportRenderer| JI
-    
+
     MD -.->|EventBus| WH
     MD -.->|EventBus| GHA
-    
+
     MD -.->|ICacheProvider| PG
     MD -.->|ICacheProvider| ES
 ```
 
 ### Planned Extension Capabilities
 
-| Extension Area | Mechanism | Effort |
-|---------------|-----------|--------|
-| **New AI provider** | Implement `IAIProvider`, register in factory | 1 file |
-| **New SCM platform** (GitLab, Bitbucket) | Implement `ISourceControlProvider` | 1 file |
-| **New output format** (HTML, Slack, Jira) | Implement `IReportRenderer` | 1 file |
-| **Custom review rules** | Add to `ReviewPolicy` config | Config change |
-| **Custom prompt templates** | Add `.md` file in `config/prompts/` | Config change |
-| **Pipeline plugins** | Add a stage to `ReviewPipeline` | 1 file |
-| **Persistent storage** | Implement `ICacheProvider` for DB | 1 file |
-| **Notification hooks** | Subscribe to `EventBus` events | 1 listener |
+| Extension Area                            | Mechanism                                    | Effort        |
+| ----------------------------------------- | -------------------------------------------- | ------------- |
+| **New AI provider**                       | Implement `IAIProvider`, register in factory | 1 file        |
+| **New SCM platform** (GitLab, Bitbucket)  | Implement `ISourceControlProvider`           | 1 file        |
+| **New output format** (HTML, Slack, Jira) | Implement `IReportRenderer`                  | 1 file        |
+| **Custom review rules**                   | Add to `ReviewPolicy` config                 | Config change |
+| **Custom prompt templates**               | Add `.md` file in `config/prompts/`          | Config change |
+| **Pipeline plugins**                      | Add a stage to `ReviewPipeline`              | 1 file        |
+| **Persistent storage**                    | Implement `ICacheProvider` for DB            | 1 file        |
+| **Notification hooks**                    | Subscribe to `EventBus` events               | 1 listener    |
 
 ### MCP Protocol Support
 
 The `MCPAdapter` is a **first-class citizen**, enabling:
+
 - Connection to any MCP-compatible tool server
 - Dynamic discovery of provider capabilities
 - Tool-use workflows where the LLM can call external tools during review
@@ -783,13 +789,13 @@ interface IPlugin {
 
 ### Review Mode Extensions
 
-| Mode | Description |
-|------|-------------|
-| **Security Audit** | Specialized prompts focusing on OWASP Top 10, secrets detection |
-| **Performance Review** | Focus on algorithmic complexity, memory leaks, N+1 queries |
-| **Accessibility Review** | Review UI code for WCAG compliance |
-| **Migration Assistant** | Review PRs in context of a framework migration |
-| **Consensus Review** | Multiple providers review independently, results are merged with conflict resolution |
+| Mode                     | Description                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------ |
+| **Security Audit**       | Specialized prompts focusing on OWASP Top 10, secrets detection                      |
+| **Performance Review**   | Focus on algorithmic complexity, memory leaks, N+1 queries                           |
+| **Accessibility Review** | Review UI code for WCAG compliance                                                   |
+| **Migration Assistant**  | Review PRs in context of a framework migration                                       |
+| **Consensus Review**     | Multiple providers review independently, results are merged with conflict resolution |
 
 ---
 
@@ -827,9 +833,7 @@ function bootstrap(config: AppConfig): Container {
   container.register(ReportAggregator);
 
   // Renderer
-  container.registerSingleton<IReportRenderer>(
-    resolveRenderer(config.output.format)
-  );
+  container.registerSingleton<IReportRenderer>(resolveRenderer(config.output.format));
 
   // Orchestrator
   container.register(ReviewOrchestrator);
@@ -840,15 +844,15 @@ function bootstrap(config: AppConfig): Container {
 
 ## Appendix B: Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| **Ports & Adapters over layered architecture** | Maximizes testability — every external dependency is behind an interface and can be mocked. |
-| **Factory + Registry over `if/switch` for providers** | Adding a provider never touches existing code (Open/Closed). |
-| **Event Bus over direct coupling** | Enables future integrations (notifications, metrics, webhooks) without modifying the review pipeline. |
-| **Zod for config validation** | Runtime type safety with excellent error messages. No decorator metadata required. |
-| **pino for logging** | Fastest Node.js structured logger. JSON output is aggregation-friendly. |
-| **Bounded concurrency over unbounded parallelism** | Prevents rate limiting and resource exhaustion when reviewing large PRs. |
-| **Prompt templates as external files** | Enables prompt iteration without code changes or redeployment. |
-| **Correlation IDs on all log entries** | Enables tracing a single review through all log aggregation systems. |
-| **Circuit breaker per provider** | Prevents cascading failures when a provider is experiencing an outage. |
-| **Graceful degradation** | Partial reviews are more useful than complete failures. The system prioritizes returning *something* useful. |
+| Decision                                              | Rationale                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Ports & Adapters over layered architecture**        | Maximizes testability — every external dependency is behind an interface and can be mocked.                  |
+| **Factory + Registry over `if/switch` for providers** | Adding a provider never touches existing code (Open/Closed).                                                 |
+| **Event Bus over direct coupling**                    | Enables future integrations (notifications, metrics, webhooks) without modifying the review pipeline.        |
+| **Zod for config validation**                         | Runtime type safety with excellent error messages. No decorator metadata required.                           |
+| **pino for logging**                                  | Fastest Node.js structured logger. JSON output is aggregation-friendly.                                      |
+| **Bounded concurrency over unbounded parallelism**    | Prevents rate limiting and resource exhaustion when reviewing large PRs.                                     |
+| **Prompt templates as external files**                | Enables prompt iteration without code changes or redeployment.                                               |
+| **Correlation IDs on all log entries**                | Enables tracing a single review through all log aggregation systems.                                         |
+| **Circuit breaker per provider**                      | Prevents cascading failures when a provider is experiencing an outage.                                       |
+| **Graceful degradation**                              | Partial reviews are more useful than complete failures. The system prioritizes returning _something_ useful. |

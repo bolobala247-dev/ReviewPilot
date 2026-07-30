@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import { loadConfig } from './infrastructure/config';
-import { createProvider } from './infrastructure/providers';
-import { GitHubAdapter } from './infrastructure/github';
-import { ReviewOrchestrator } from './application/orchestrator';
-import { renderMarkdown } from './infrastructure/renderer';
-import { logger } from './infrastructure/logger';
+import { loadConfig } from '@infrastructure/config';
+import { createProvider } from '@infrastructure/providers';
+import { GitHubAdapter } from '@infrastructure/github';
+import { ReviewOrchestrator } from '@application/orchestrator';
+import { renderMarkdown } from '@infrastructure/renderer';
+import { logger } from '@infrastructure/logger';
 
 export function bootstrap(providerOverride?: string) {
   const config = loadConfig(providerOverride ? { provider: providerOverride } : {});
@@ -39,9 +39,10 @@ async function main() {
 
     const markdownOutput = renderMarkdown(report);
     console.log(markdownOutput);
-  } catch (error: any) {
-    logger.error({ error: error.message, stack: error.stack }, 'Execution failed');
-    console.error(`\n❌ Error: ${error.message}\n`);
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error({ error: err.message, stack: err.stack }, 'Execution failed');
+    console.error(`\n❌ Error: ${err.message}\n`);
     process.exit(1);
   }
 }

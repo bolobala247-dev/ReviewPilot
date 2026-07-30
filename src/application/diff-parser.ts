@@ -1,4 +1,4 @@
-import { FileDiff } from '../domain/types';
+import { FileDiff } from '@domain/types';
 
 export function parseDiff(rawFiles: FileDiff[]): FileDiff[] {
   return rawFiles.map((file) => ({

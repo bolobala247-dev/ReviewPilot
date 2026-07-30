@@ -6,6 +6,7 @@ Additions: {{additions}}
 Deletions: {{deletions}}
 
 Diff Patch:
+
 ```diff
 {{patch}}
 ```

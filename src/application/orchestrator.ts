@@ -1,14 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { IAIProvider } from '../domain/ports';
-import { GitHubAdapter } from '../infrastructure/github';
-import { AppConfig } from '../infrastructure/config';
-import { ReviewRequest, ReviewReport, ReviewComment, FileDiff } from '../domain/types';
+import { IAIProvider } from '@domain/ports';
+import { ReviewRequest, ReviewReport, ReviewComment } from '@domain/types';
+import { GitHubAdapter } from '@infrastructure/github';
+import { AppConfig } from '@infrastructure/config';
 import { parseDiff, filterFiles } from './diff-parser';
 import { buildPrompt } from './prompt-builder';
 import { parseResponse } from './response-parser';
-import { retry } from '../infrastructure/retry';
-import { logger } from '../infrastructure/logger';
+import { retry } from '@infrastructure/retry';
+import { logger } from '@infrastructure/logger';
 
 export class ReviewOrchestrator {
   constructor(
@@ -27,14 +27,12 @@ export class ReviewOrchestrator {
 
     log.info('Starting AI code review orchestration');
 
-    // Step 1: Fetch PR data from GitHub
     const prData = await this.github.fetchPullRequest(
       request.owner,
       request.repo,
       request.prNumber,
     );
 
-    // Step 2: Parse and filter diffs
     const parsedFiles = parseDiff(prData.files);
     const { keep, skip } = filterFiles(
       parsedFiles,
@@ -47,10 +45,8 @@ export class ReviewOrchestrator {
       'Files filtered for review',
     );
 
-    // Step 3: Load prompt templates
     const { systemPromptTemplate, userPromptTemplate } = this.loadPromptTemplates();
 
-    // Step 4: Fan out reviews with bounded concurrency
     const allComments: ReviewComment[] = [];
     const reviewedFiles: string[] = [];
     const skippedFiles: string[] = [...skip];
@@ -92,9 +88,10 @@ export class ReviewOrchestrator {
             { commentsCount: comments.length, tokensUsed: response.tokensUsed },
             'File review complete',
           );
-        } catch (err: any) {
-          fileLog.error({ error: err.message }, 'Failed to review file, skipping');
-          skippedFiles.push(`${file.filename} (error: ${err.message})`);
+        } catch (err: unknown) {
+          const error = err as Error;
+          fileLog.error({ error: error.message }, 'Failed to review file, skipping');
+          skippedFiles.push(`${file.filename} (error: ${error.message})`);
         }
       }
     };
@@ -103,7 +100,10 @@ export class ReviewOrchestrator {
     await Promise.all(workers);
 
     const durationMs = Date.now() - startTime;
-    log.info({ reviewedCount: reviewedFiles.length, commentsCount: allComments.length, durationMs }, 'Review workflow completed');
+    log.info(
+      { reviewedCount: reviewedFiles.length, commentsCount: allComments.length, durationMs },
+      'Review workflow completed',
+    );
 
     const summary = `Reviewed ${reviewedFiles.length} file(s) across ${prData.files.length} changed file(s). Found ${allComments.length} finding(s).`;
 

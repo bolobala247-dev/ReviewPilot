@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { IAIProvider, AIReviewRequest, AIReviewResponse } from '../../domain/ports';
-import { AppError, ErrorCode } from '../../domain/errors';
+import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
+import { AppError, ErrorCode } from '@domain/errors';
 
 export interface GeminiAdapterConfig {
   apiKey: string;
@@ -42,14 +42,30 @@ export class GeminiAdapter implements IAIProvider {
         tokensUsed,
         model: this.model,
       };
-    } catch (error: any) {
-      if (error.status === 429 || error.message?.includes('429')) {
-        throw new AppError(ErrorCode.RATE_LIMIT, 'Gemini rate limit exceeded', true, error);
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status === 429 || err.message?.includes('429')) {
+        throw new AppError(
+          ErrorCode.RATE_LIMIT,
+          'Gemini rate limit exceeded',
+          true,
+          error as Error,
+        );
       }
-      if (error.status === 401 || error.message?.includes('API key')) {
-        throw new AppError(ErrorCode.AUTH_FAILED, 'Gemini authentication failed', false, error);
+      if (err.status === 401 || err.message?.includes('API key')) {
+        throw new AppError(
+          ErrorCode.AUTH_FAILED,
+          'Gemini authentication failed',
+          false,
+          error as Error,
+        );
       }
-      throw new AppError(ErrorCode.PROVIDER_ERROR, `Gemini API error: ${error.message}`, true, error);
+      throw new AppError(
+        ErrorCode.PROVIDER_ERROR,
+        `Gemini API error: ${err.message}`,
+        true,
+        error as Error,
+      );
     }
   }
 }

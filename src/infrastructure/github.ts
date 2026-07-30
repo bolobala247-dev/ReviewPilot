@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
-import { FileDiff } from '../domain/types';
-import { AppError, ErrorCode } from '../domain/errors';
+import { FileDiff } from '@domain/types';
+import { AppError, ErrorCode } from '@domain/errors';
 import { logger } from './logger';
 
 export interface GitHubConfig {
@@ -47,28 +47,29 @@ export class GitHubAdapter {
         prTitle: pr.title,
         files,
       };
-    } catch (error: any) {
-      if (error.status === 404) {
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status === 404) {
         throw new AppError(
           ErrorCode.GITHUB_ERROR,
           `Pull Request ${owner}/${repo}#${prNumber} not found`,
           false,
-          error,
+          error as Error,
         );
       }
-      if (error.status === 401 || error.status === 403) {
+      if (err.status === 401 || err.status === 403) {
         throw new AppError(
           ErrorCode.AUTH_FAILED,
           `GitHub authentication/permissions error for ${owner}/${repo}`,
           false,
-          error,
+          error as Error,
         );
       }
       throw new AppError(
         ErrorCode.GITHUB_ERROR,
-        `Failed to fetch PR ${owner}/${repo}#${prNumber}: ${error.message}`,
+        `Failed to fetch PR ${owner}/${repo}#${prNumber}: ${err.message}`,
         true,
-        error,
+        error as Error,
       );
     }
   }

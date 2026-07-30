@@ -1,13 +1,14 @@
-import { ReviewOrchestrator } from '../../src/application/orchestrator';
-import { IAIProvider } from '../../src/domain/ports';
-import { GitHubAdapter } from '../../src/infrastructure/github';
-import { AppConfig } from '../../src/infrastructure/config';
+import { describe, it, expect, vi } from 'vitest';
+import { ReviewOrchestrator } from '@application/orchestrator';
+import { IAIProvider } from '@domain/ports';
+import { GitHubAdapter } from '@infrastructure/github';
+import { AppConfig } from '@infrastructure/config';
 
 describe('ReviewOrchestrator', () => {
   it('should orchestrate review successfully', async () => {
     const mockProvider: IAIProvider = {
       name: 'mock-provider',
-      review: jest.fn().mockResolvedValue({
+      review: vi.fn().mockResolvedValue({
         content: JSON.stringify({
           comments: [{ line: 10, severity: 'SUGGESTION', message: 'Use const' }],
         }),
@@ -17,7 +18,7 @@ describe('ReviewOrchestrator', () => {
     };
 
     const mockGitHub = {
-      fetchPullRequest: jest.fn().mockResolvedValue({
+      fetchPullRequest: vi.fn().mockResolvedValue({
         prTitle: 'Fix issue',
         files: [
           {

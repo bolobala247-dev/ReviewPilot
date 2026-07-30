@@ -1,9 +1,9 @@
-import { IAIProvider } from '../../domain/ports';
-import { AppConfig } from '../config';
+import { IAIProvider } from '@domain/ports';
+import { AppConfig } from '@infrastructure/config';
 import { OpenAIAdapter } from './openai';
 import { GeminiAdapter } from './gemini';
 import { AnthropicAdapter } from './anthropic';
-import { AppError, ErrorCode } from '../../domain/errors';
+import { AppError, ErrorCode } from '@domain/errors';
 
 export function createProvider(config: AppConfig): IAIProvider {
   switch (config.ai.provider) {
@@ -16,7 +16,7 @@ export function createProvider(config: AppConfig): IAIProvider {
     default:
       throw new AppError(
         ErrorCode.CONFIG_ERROR,
-        `Unknown AI provider: ${(config.ai as any).provider}`,
+        `Unknown AI provider: ${(config.ai as { provider: string }).provider}`,
       );
   }
 }

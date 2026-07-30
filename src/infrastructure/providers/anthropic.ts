@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { IAIProvider, AIReviewRequest, AIReviewResponse } from '../../domain/ports';
-import { AppError, ErrorCode } from '../../domain/errors';
+import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
+import { AppError, ErrorCode } from '@domain/errors';
 
 export interface AnthropicAdapterConfig {
   apiKey: string;
@@ -39,17 +39,38 @@ export class AnthropicAdapter implements IAIProvider {
         tokensUsed,
         model: this.model,
       };
-    } catch (error: any) {
-      if (error.status === 429) {
-        throw new AppError(ErrorCode.RATE_LIMIT, 'Anthropic rate limit exceeded', true, error);
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status === 429) {
+        throw new AppError(
+          ErrorCode.RATE_LIMIT,
+          'Anthropic rate limit exceeded',
+          true,
+          error as Error,
+        );
       }
-      if (error.status === 401) {
-        throw new AppError(ErrorCode.AUTH_FAILED, 'Anthropic authentication failed', false, error);
+      if (err.status === 401) {
+        throw new AppError(
+          ErrorCode.AUTH_FAILED,
+          'Anthropic authentication failed',
+          false,
+          error as Error,
+        );
       }
-      if (error.status >= 500) {
-        throw new AppError(ErrorCode.TIMEOUT, 'Anthropic server error/timeout', true, error);
+      if (err.status && err.status >= 500) {
+        throw new AppError(
+          ErrorCode.TIMEOUT,
+          'Anthropic server error/timeout',
+          true,
+          error as Error,
+        );
       }
-      throw new AppError(ErrorCode.PROVIDER_ERROR, `Anthropic API error: ${error.message}`, true, error);
+      throw new AppError(
+        ErrorCode.PROVIDER_ERROR,
+        `Anthropic API error: ${err.message}`,
+        true,
+        error as Error,
+      );
     }
   }
 }

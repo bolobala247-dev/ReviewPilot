@@ -1,5 +1,6 @@
-import { parseResponse } from '../../src/application/response-parser';
-import { ReviewSeverity } from '../../src/domain/types';
+import { describe, it, expect } from 'vitest';
+import { parseResponse } from '@application/response-parser';
+import { ReviewSeverity } from '@domain/types';
 
 describe('ResponseParser', () => {
   it('should parse valid JSON response', () => {
@@ -23,7 +24,8 @@ describe('ResponseParser', () => {
   });
 
   it('should handle markdown fenced JSON response', () => {
-    const raw = '```json\n{\n  "comments": [\n    {\n      "line": 5,\n      "severity": "WARNING",\n      "message": "Potential memory leak"\n    }\n  ]\n}\n```';
+    const raw =
+      '```json\n{\n  "comments": [\n    {\n      "line": 5,\n      "severity": "WARNING",\n      "message": "Potential memory leak"\n    }\n  ]\n}\n```';
 
     const comments = parseResponse(raw, 'src/main.ts');
     expect(comments).toHaveLength(1);
