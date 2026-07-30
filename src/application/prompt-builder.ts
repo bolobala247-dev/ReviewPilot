@@ -78,6 +78,22 @@ export function buildPrompt(options: BuildPromptOptions): PromptResult {
   };
 }
 
+// Fallback templates mirror prompts/system.md and prompts/review-file.md rules
+// (focus areas, ignore rules, diff-only grounding) in condensed form.
+const FALLBACK_SYSTEM_TEMPLATE = [
+  'You are an expert senior software engineer conducting an automated code review of a Pull Request diff.',
+  'Focus ONLY on: correctness, logic bugs, security, performance, maintainability.',
+  'Do NOT comment on: formatting-only issues, lint-only issues, naming preferences, or anything handled by automatic formatters.',
+  'Only review changed lines (`+`/`-`) in the diff. Never comment outside the diff. Never invent or assume code that is not visible in the diff.',
+  'If the changed lines contain no real issues, return an empty comments array.',
+  'Return structured JSON with a "comments" array of { file, line, severity, message, suggestion } objects.',
+].join('\n');
+
+const FALLBACK_USER_TEMPLATE =
+  'Please review the following Pull Request.\n\n' +
+  'Review ONLY the changed lines (`+`/`-`) in the diffs below. Do not comment on unchanged context lines or code outside these diffs.\n\n' +
+  'PR Title: {{PR_TITLE}}\n\nChanged Files:\n\n{{FILES}}';
+
 function loadDefaultTemplates(): { systemTemplate: string; userTemplate: string } {
   const rootDir = process.cwd();
   const systemPath = path.join(rootDir, 'prompts', 'system.md');
@@ -85,11 +101,11 @@ function loadDefaultTemplates(): { systemTemplate: string; userTemplate: string 
 
   const systemTemplate = fs.existsSync(systemPath)
     ? fs.readFileSync(systemPath, 'utf8')
-    : 'You are an expert AI code reviewer. Return structured JSON with comments.';
+    : FALLBACK_SYSTEM_TEMPLATE;
 
   const userTemplate = fs.existsSync(userPath)
     ? fs.readFileSync(userPath, 'utf8')
-    : 'Please review the following Pull Request:\n\nPR Title: {{PR_TITLE}}\n\nChanged Files:\n\n{{FILES}}';
+    : FALLBACK_USER_TEMPLATE;
 
   return { systemTemplate, userTemplate };
 }

@@ -198,4 +198,60 @@ describe('PromptBuilder', () => {
     expect(res.userPrompt).toContain('~~~js');
     expect(res.userPrompt).toContain('~~~');
   });
+
+  describe('default templates (Phase 10.3 prompt rules)', () => {
+    const files: FileDiff[] = [
+      {
+        filename: 'src/example.ts',
+        language: 'typescript',
+        patch: '+ const x = 1;',
+        additions: 1,
+        deletions: 0,
+      },
+    ];
+
+    it('should include focus categories in the default system prompt', () => {
+      const res = buildPrompt({ prTitle: 'Test PR', files });
+
+      expect(res.systemPrompt).toContain('Correctness');
+      expect(res.systemPrompt).toContain('Logic bugs');
+      expect(res.systemPrompt).toContain('Security');
+      expect(res.systemPrompt).toContain('Performance');
+      expect(res.systemPrompt).toContain('Maintainability');
+    });
+
+    it('should include ignore rules for formatting, lint, and naming noise', () => {
+      const res = buildPrompt({ prTitle: 'Test PR', files });
+
+      expect(res.systemPrompt).toContain('Formatting-only');
+      expect(res.systemPrompt).toContain('Lint-only');
+      expect(res.systemPrompt).toContain('Naming preferences');
+      expect(res.systemPrompt).toContain('automatic formatters');
+    });
+
+    it('should include grounding rules against hallucination', () => {
+      const res = buildPrompt({ prTitle: 'Test PR', files });
+
+      expect(res.systemPrompt).toContain('Only review CHANGED lines');
+      expect(res.systemPrompt).toContain('Never comment on code outside the provided diff');
+      expect(res.systemPrompt).toContain('Never invent');
+      expect(res.systemPrompt).toContain('empty comments array');
+    });
+
+    it('should keep the JSON output schema in the default system prompt', () => {
+      const res = buildPrompt({ prTitle: 'Test PR', files });
+
+      expect(res.systemPrompt).toContain('"comments"');
+      expect(res.systemPrompt).toContain('"severity"');
+      expect(res.systemPrompt).toContain('"CRITICAL" | "WARNING" | "SUGGESTION" | "PRAISE"');
+    });
+
+    it('should scope the default user prompt to changed lines only', () => {
+      const res = buildPrompt({ prTitle: 'Test PR', files });
+
+      expect(res.userPrompt).toContain('Review ONLY the changed lines');
+      expect(res.userPrompt).toContain('PR Title: Test PR');
+      expect(res.userPrompt).toContain('### File: src/example.ts');
+    });
+  });
 });
