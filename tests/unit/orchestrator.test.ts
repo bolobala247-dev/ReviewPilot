@@ -183,6 +183,65 @@ describe('ReviewOrchestrator', () => {
     expect(report.metadata.parserStatus).toBe('success');
   });
 
+  it('should collect execution metrics without altering the review workflow', async () => {
+    (mockProvider.review as ReturnType<typeof vi.fn>).mockResolvedValue({
+      content: JSON.stringify({ comments: [] }),
+      metadata: {
+        provider: 'openai',
+        model: 'mock-model',
+        tokensUsed: 150,
+        inputTokens: 120,
+        outputTokens: 30,
+        durationMs: 10,
+      },
+    });
+
+    const orchestrator = new ReviewOrchestrator(mockProvider, mockGitHub, mockConfig);
+
+    const report = await orchestrator.review({
+      owner: 'octocat',
+      repo: 'hello-world',
+      prNumber: 1,
+      provider: 'openai',
+    });
+
+    expect(report.metrics).toBeDefined();
+    expect(report.metrics?.promptChars).toBeGreaterThan(0);
+    expect(report.metrics?.responseChars).toBeGreaterThan(0);
+    expect(report.metrics?.inputTokens).toBe(120);
+    expect(report.metrics?.outputTokens).toBe(30);
+    expect(report.metrics?.totalTokens).toBe(150);
+    expect(report.metrics?.estimatedCostUsd).toBeGreaterThanOrEqual(0);
+    expect(report.metrics?.githubFetchMs).toBeGreaterThanOrEqual(0);
+    expect(report.metrics?.promptBuildMs).toBeGreaterThanOrEqual(0);
+    expect(report.metrics?.providerMs).toBeGreaterThanOrEqual(0);
+    expect(report.metrics?.parserMs).toBeGreaterThanOrEqual(0);
+    expect(report.metrics?.totalMs).toBe(report.metadata.durationMs);
+  });
+
+  it('should return zeroed metrics when PR has 0 reviewable files', async () => {
+    (mockGitHub.fetchPullRequest as ReturnType<typeof vi.fn>).mockResolvedValue({
+      prTitle: 'Empty PR',
+      files: [],
+    });
+
+    const orchestrator = new ReviewOrchestrator(mockProvider, mockGitHub, mockConfig);
+
+    const report = await orchestrator.review({
+      owner: 'octocat',
+      repo: 'hello-world',
+      prNumber: 2,
+      provider: 'openai',
+    });
+
+    expect(report.metrics).toBeDefined();
+    expect(report.metrics?.promptChars).toBe(0);
+    expect(report.metrics?.responseChars).toBe(0);
+    expect(report.metrics?.totalTokens).toBe(0);
+    expect(report.metrics?.estimatedCostUsd).toBe(0);
+    expect(report.metrics?.providerMs).toBe(0);
+  });
+
   it('should guarantee deterministic orchestration across multiple calls', async () => {
     const orchestrator = new ReviewOrchestrator(mockProvider, mockGitHub, mockConfig);
 

@@ -1,7 +1,8 @@
 import { IAIProvider } from '@domain/ports';
-import { ReviewRequest, ReviewReport, ReviewComment } from '@domain/types';
+import { ReviewRequest, ReviewReport, ReviewComment, ExecutionMetrics } from '@domain/types';
 import { GitHubAdapter } from '@infrastructure/github';
 import { AppConfig } from '@infrastructure/config';
+import { estimateCostUsd } from '@infrastructure/cost';
 import { parseDiff, filterFiles } from './diff-parser';
 import { buildPrompt } from './prompt-builder';
 import { parseResponse } from './response-parser';
@@ -24,11 +25,13 @@ export class ReviewOrchestrator {
 
     log.info('Starting AI code review orchestration');
 
+    const fetchStart = Date.now();
     const prData = await this.github.fetchPullRequest(
       request.owner,
       request.repo,
       request.prNumber,
     );
+    const githubFetchMs = Date.now() - fetchStart;
 
     const parsedFiles = parseDiff(prData.files);
     const { keep, skip } = filterFiles(
@@ -46,6 +49,20 @@ export class ReviewOrchestrator {
         'Review workflow completed with zero files to review',
       );
 
+      const metrics: ExecutionMetrics = {
+        promptChars: 0,
+        responseChars: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        githubFetchMs,
+        promptBuildMs: 0,
+        providerMs: 0,
+        parserMs: 0,
+        totalMs: durationMs,
+      };
+
       return {
         repo: `${request.owner}/${request.repo}`,
         prNumber: request.prNumber,
@@ -54,6 +71,7 @@ export class ReviewOrchestrator {
         summary: `Reviewed 0 file(s) across ${prData.files.length} changed file(s). Found 0 finding(s).`,
         reviewedFiles: [],
         skippedFiles,
+        metrics,
         metadata: {
           provider: this.provider.name,
           model: this.config.ai.model,
@@ -68,6 +86,7 @@ export class ReviewOrchestrator {
       };
     }
 
+    const promptBuildStart = Date.now();
     const { systemPrompt, userPrompt } = buildPrompt({
       prTitle: prData.prTitle,
       files: keep,
@@ -75,15 +94,20 @@ export class ReviewOrchestrator {
         maxFileSizeBytes: this.config.review.maxFileSizeBytes,
       } as unknown as { maxFiles?: number; maxTotalChars?: number },
     });
+    const promptBuildMs = Date.now() - promptBuildStart;
 
+    const providerStart = Date.now();
     const response = await this.provider.review({
       systemPrompt,
       userPrompt,
       temperature: this.config.ai.temperature,
     });
+    const providerMs = Date.now() - providerStart;
 
     const defaultFilename = keep[0]?.filename ?? 'unknown';
+    const parserStart = Date.now();
     const comments: ReviewComment[] = parseResponse(response.content, defaultFilename);
+    const parserMs = Date.now() - parserStart;
 
     const parseSucceeded =
       response.content.trim() === ''
@@ -102,6 +126,28 @@ export class ReviewOrchestrator {
 
     const summary = `Reviewed ${reviewedFiles.length} file(s) across ${prData.files.length} changed file(s). Found ${comments.length} finding(s).`;
 
+    const inputTokens = response.metadata.inputTokens ?? 0;
+    const outputTokens = response.metadata.outputTokens ?? 0;
+
+    const metrics: ExecutionMetrics = {
+      promptChars: systemPrompt.length + userPrompt.length,
+      responseChars: response.content.length,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      estimatedCostUsd: estimateCostUsd(
+        this.provider.name,
+        this.config.ai.model,
+        inputTokens,
+        outputTokens,
+      ),
+      githubFetchMs,
+      promptBuildMs,
+      providerMs,
+      parserMs,
+      totalMs: durationMs,
+    };
+
     return {
       repo: `${request.owner}/${request.repo}`,
       prNumber: request.prNumber,
@@ -110,12 +156,13 @@ export class ReviewOrchestrator {
       summary,
       reviewedFiles,
       skippedFiles,
+      metrics,
       metadata: {
         provider: this.provider.name,
         model: this.config.ai.model,
         totalTokens,
-        inputTokens: response.metadata.inputTokens ?? 0,
-        outputTokens: response.metadata.outputTokens ?? 0,
+        inputTokens,
+        outputTokens,
         durationMs,
         timestamp: new Date().toISOString(),
         parseSucceeded,

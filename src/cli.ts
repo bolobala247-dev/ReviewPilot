@@ -139,8 +139,30 @@ export async function runCli(args: string[]): Promise<number> {
       provider: parsedArgs.provider ?? 'openai',
     });
 
+    const rendererStart = Date.now();
     const output = renderPlainText(report);
+    const rendererMs = Date.now() - rendererStart;
     console.log(output);
+
+    if (parsedArgs.verbose && report.metrics) {
+      const m = report.metrics;
+      console.log('📊 Execution Metrics');
+      console.log('───────────────────────────────────────');
+      console.log(`  Prompt chars:         ${m.promptChars}`);
+      console.log(`  Response chars:       ${m.responseChars}`);
+      console.log(`  Input tokens:         ${m.inputTokens}`);
+      console.log(`  Output tokens:        ${m.outputTokens}`);
+      console.log(`  Total tokens:         ${m.totalTokens}`);
+      console.log(`  Estimated cost:       $${m.estimatedCostUsd.toFixed(6)}`);
+      console.log(`  GitHub fetch:         ${m.githubFetchMs}ms`);
+      console.log(`  Prompt build:         ${m.promptBuildMs}ms`);
+      console.log(`  Provider call:        ${m.providerMs}ms`);
+      console.log(`  Response parse:       ${m.parserMs}ms`);
+      console.log(`  Report render:        ${rendererMs}ms`);
+      console.log(`  Total execution:      ${m.totalMs + rendererMs}ms`);
+      console.log('───────────────────────────────────────');
+    }
+
     return 0;
   } catch (error: unknown) {
     if (error instanceof CliValidationError) {
