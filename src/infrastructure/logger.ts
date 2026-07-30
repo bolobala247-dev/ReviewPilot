@@ -1,15 +1,17 @@
 import pino from 'pino';
 
-export const logger = pino({
+const loggerOptions: pino.LoggerOptions = {
   level: process.env.AICR_LOG_LEVEL || 'info',
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            ignore: 'pid,hostname',
-          },
-        }
-      : undefined,
-});
+};
+
+if (process.env.NODE_ENV !== 'production') {
+  loggerOptions.transport = {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      ignore: 'pid,hostname',
+    },
+  };
+}
+
+export const logger = pino(loggerOptions);

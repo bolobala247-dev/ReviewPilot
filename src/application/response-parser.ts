@@ -71,13 +71,16 @@ function extractCommentsFromObject(
   for (const item of rawList) {
     if (typeof item === 'object' && item !== null && 'message' in item) {
       const msgItem = item as Record<string, unknown>;
-      results.push({
+      const comment: ReviewComment = {
         file: typeof msgItem.file === 'string' ? msgItem.file : filename,
         line: typeof msgItem.line === 'number' ? msgItem.line : 1,
         severity: parseSeverity(msgItem.severity),
         message: String(msgItem.message),
-        suggestion: msgItem.suggestion ? String(msgItem.suggestion) : undefined,
-      });
+      };
+      if (msgItem.suggestion) {
+        comment.suggestion = String(msgItem.suggestion);
+      }
+      results.push(comment);
     }
   }
 
