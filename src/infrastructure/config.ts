@@ -10,6 +10,7 @@ export const ConfigSchema = z.object({
     apiKey: z.string().min(1, 'AICR_AI_API_KEY is required'),
     model: z.string().default('gpt-4o'),
     temperature: z.number().min(0).max(2).default(0.1),
+    timeoutMs: z.number().min(1000).default(30000),
   }),
   github: z.object({
     token: z.string().min(1, 'AICR_GITHUB_TOKEN is required'),
@@ -27,6 +28,7 @@ export const ConfigSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
+export type AIConfig = AppConfig['ai'];
 
 export function loadConfig(overrides: Record<string, unknown> = {}): AppConfig {
   const ignoreRaw = overrides.ignorePatterns ?? process.env.AICR_IGNORE_PATTERNS;
@@ -53,6 +55,7 @@ export function loadConfig(overrides: Record<string, unknown> = {}): AppConfig {
             ? 'claude-3-5-sonnet-20240620'
             : 'gpt-4o'),
       temperature: process.env.AICR_AI_TEMPERATURE ? Number(process.env.AICR_AI_TEMPERATURE) : 0.1,
+      timeoutMs: process.env.AICR_AI_TIMEOUT ? Number(process.env.AICR_AI_TIMEOUT) : 30000,
     },
     github: {
       token: overrides.githubToken ?? process.env.AICR_GITHUB_TOKEN,

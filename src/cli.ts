@@ -8,7 +8,7 @@ import { logger } from '@infrastructure/logger';
 
 export function bootstrap(providerOverride?: string) {
   const config = loadConfig(providerOverride ? { provider: providerOverride } : {});
-  const provider = createProvider(config);
+  const provider = createProvider(config.ai);
   const github = new GitHubAdapter(config.github);
   const orchestrator = new ReviewOrchestrator(provider, github, config);
   return { orchestrator, config };

@@ -1,38 +1,64 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { IAIProvider, AIReviewRequest, AIReviewResponse } from '@domain/ports';
 import { AppError, ErrorCode } from '@domain/errors';
+import { logger } from '../logger';
 
 export interface AnthropicAdapterConfig {
   apiKey: string;
   model: string;
   temperature?: number;
+  timeoutMs?: number;
 }
 
 export class AnthropicAdapter implements IAIProvider {
   readonly name = 'anthropic';
-  private client: Anthropic;
-  private model: string;
-  private defaultTemperature: number;
+  private readonly client: Anthropic;
+  private readonly model: string;
+  private readonly defaultTemperature: number;
+  private readonly timeoutMs: number;
 
   constructor(config: AnthropicAdapterConfig) {
-    this.client = new Anthropic({ apiKey: config.apiKey });
+    if (!config.apiKey || config.apiKey.trim().length === 0) {
+      throw new AppError(ErrorCode.CONFIG_ERROR, 'Anthropic API key is required', false);
+    }
+    this.client = new Anthropic({
+      apiKey: config.apiKey,
+      timeout: config.timeoutMs ?? 30000,
+    });
     this.model = config.model;
     this.defaultTemperature = config.temperature ?? 0.1;
+    this.timeoutMs = config.timeoutMs ?? 30000;
   }
 
   async review(request: AIReviewRequest): Promise<AIReviewResponse> {
+    const startTime = Date.now();
     try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 4096,
-        temperature: request.temperature ?? this.defaultTemperature,
-        system: request.systemPrompt,
-        messages: [{ role: 'user', content: request.userPrompt }],
-      });
+      const response = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 4096,
+          temperature: request.temperature ?? this.defaultTemperature,
+          system: request.systemPrompt,
+          messages: [{ role: 'user', content: request.userPrompt }],
+        },
+        {
+          timeout: this.timeoutMs,
+        },
+      );
 
-      const contentBlock = response.content[0];
-      const content = contentBlock?.type === 'text' ? contentBlock.text : '{}';
+      // Join text from all text content blocks (supports multiple content blocks)
+      const textBlocks = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+        .map((block) => block.text);
+
+      const content = textBlocks.join('\n');
       const tokensUsed = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+      const durationMs = Date.now() - startTime;
+
+      logger.info(
+        { provider: this.name, model: this.model, durationMs, tokensUsed },
+        'AI review completed',
+      );
 
       return {
         content,
@@ -40,37 +66,27 @@ export class AnthropicAdapter implements IAIProvider {
         model: this.model,
       };
     } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      if (err.status === 429) {
-        throw new AppError(
-          ErrorCode.RATE_LIMIT,
-          'Anthropic rate limit exceeded',
-          true,
-          error as Error,
-        );
-      }
-      if (err.status === 401) {
-        throw new AppError(
-          ErrorCode.AUTH_FAILED,
-          'Anthropic authentication failed',
-          false,
-          error as Error,
-        );
-      }
-      if (err.status && err.status >= 500) {
-        throw new AppError(
-          ErrorCode.TIMEOUT,
-          'Anthropic server error/timeout',
-          true,
-          error as Error,
-        );
-      }
-      throw new AppError(
-        ErrorCode.PROVIDER_ERROR,
-        `Anthropic API error: ${err.message}`,
-        true,
-        error as Error,
-      );
+      throw this.handleError(error);
     }
+  }
+
+  private handleError(error: unknown): AppError {
+    const err = error as { status?: number; message?: string; name?: string };
+    const cause = error instanceof Error ? error : undefined;
+
+    if (err.name === 'APIConnectionTimeoutError' || err.message?.includes('timeout')) {
+      return new AppError(ErrorCode.TIMEOUT, 'Anthropic request timed out', true, cause);
+    }
+
+    if (err.status === 401) {
+      return new AppError(ErrorCode.AUTH_FAILED, 'Anthropic authentication failed', false, cause);
+    }
+
+    if (err.status === 429) {
+      return new AppError(ErrorCode.RATE_LIMIT, 'Anthropic rate limit exceeded', true, cause);
+    }
+
+    const message = err.message ?? 'Unknown error';
+    return new AppError(ErrorCode.PROVIDER_ERROR, `Anthropic API error: ${message}`, true, cause);
   }
 }
