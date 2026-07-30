@@ -8,7 +8,7 @@ export enum ReviewSeverity {
 export interface FileDiff {
   filename: string;
   language: string;
-  patch: string;
+  patch?: string | undefined;
   additions: number;
   deletions: number;
 }
@@ -18,7 +18,22 @@ export interface ReviewComment {
   line: number;
   severity: ReviewSeverity;
   message: string;
-  suggestion?: string;
+  suggestion?: string | undefined;
+}
+
+export interface ExecutionMetrics {
+  promptChars: number;
+  responseChars: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  githubFetchMs: number;
+  promptBuildMs: number;
+  providerMs: number;
+  parserMs: number;
+  rendererMs?: number | undefined;
+  totalMs: number;
 }
 
 export interface ReviewReport {
@@ -29,12 +44,17 @@ export interface ReviewReport {
   summary: string;
   reviewedFiles: string[];
   skippedFiles: string[];
+  metrics?: ExecutionMetrics | undefined;
   metadata: {
     provider: string;
     model: string;
     totalTokens: number;
+    inputTokens?: number | undefined;
+    outputTokens?: number | undefined;
     durationMs: number;
     timestamp: string;
+    parseSucceeded?: boolean | undefined;
+    parserStatus?: 'success' | 'failed' | undefined;
   };
 }
 

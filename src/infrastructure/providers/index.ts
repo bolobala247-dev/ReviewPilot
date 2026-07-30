@@ -1,22 +1,31 @@
-import { IAIProvider } from '../../domain/ports';
-import { AppConfig } from '../config';
+import { IAIProvider } from '@domain/ports';
+import { AppError, ErrorCode } from '@domain/errors';
+import { AIConfig } from '../config';
 import { OpenAIAdapter } from './openai';
 import { GeminiAdapter } from './gemini';
 import { AnthropicAdapter } from './anthropic';
-import { AppError, ErrorCode } from '../../domain/errors';
 
-export function createProvider(config: AppConfig): IAIProvider {
-  switch (config.ai.provider) {
+export function createProvider(config: AIConfig): IAIProvider {
+  if (!config.apiKey || config.apiKey.trim().length === 0) {
+    throw new AppError(
+      ErrorCode.CONFIG_ERROR,
+      `API key is required for provider ${config.provider}`,
+      false,
+    );
+  }
+
+  switch (config.provider) {
     case 'openai':
-      return new OpenAIAdapter(config.ai);
+      return new OpenAIAdapter(config);
     case 'gemini':
-      return new GeminiAdapter(config.ai);
+      return new GeminiAdapter(config);
     case 'anthropic':
-      return new AnthropicAdapter(config.ai);
+      return new AnthropicAdapter(config);
     default:
       throw new AppError(
         ErrorCode.CONFIG_ERROR,
-        `Unknown AI provider: ${(config.ai as any).provider}`,
+        `Unsupported AI provider: ${(config as { provider: string }).provider}`,
+        false,
       );
   }
 }

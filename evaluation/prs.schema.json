@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reviewpilot.dev/schemas/prs.schema.json",
+  "title": "ReviewPilot Benchmark PR Test Cases",
+  "description": "Schema for the evaluation/prs.json benchmark dataset. Each entry describes a real-world GitHub Pull Request used to evaluate ReviewPilot review quality.",
+  "type": "object",
+  "required": ["version", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Dataset schema version (semver).",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "cases": {
+      "type": "array",
+      "description": "List of PR benchmark test cases.",
+      "items": { "$ref": "#/$defs/prTestCase" }
+    }
+  },
+  "$defs": {
+    "prTestCase": {
+      "type": "object",
+      "required": [
+        "id",
+        "repository",
+        "pullRequest",
+        "category",
+        "changedFiles",
+        "expectedDifficulty",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique, stable identifier for the test case (kebab-case). Used to name result files.",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "repository": {
+          "type": "string",
+          "description": "GitHub repository in owner/repo format.",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "pullRequest": {
+          "type": "integer",
+          "description": "Pull Request number on the repository.",
+          "minimum": 1
+        },
+        "category": {
+          "type": "string",
+          "description": "Primary nature of the change under review.",
+          "enum": [
+            "bug-fix",
+            "feature",
+            "refactor",
+            "security",
+            "performance",
+            "documentation",
+            "test",
+            "dependency-upgrade",
+            "config"
+          ]
+        },
+        "changedFiles": {
+          "type": "integer",
+          "description": "Number of files changed in the PR (used for sizing / concurrency analysis).",
+          "minimum": 1
+        },
+        "expectedDifficulty": {
+          "type": "string",
+          "description": "Expected difficulty for an AI reviewer to produce useful findings.",
+          "enum": ["easy", "medium", "hard"]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Human context: what the PR does, known issues the reviewer SHOULD catch, and traps that could induce hallucinations.",
+          "minLength": 1
+        },
+        "languages": {
+          "type": "array",
+          "description": "Optional: primary languages present in the diff.",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "knownIssues": {
+          "type": "array",
+          "description": "Optional ground truth: issues a good reviewer is expected to find. Used to score Missing Findings.",
+          "items": {
+            "type": "object",
+            "required": ["file", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Path of the file containing the issue."
+              },
+              "line": {
+                "type": "integer",
+                "description": "Approximate line number of the issue (post-change).",
+                "minimum": 1
+              },
+              "severity": {
+                "type": "string",
+                "description": "Expected severity, aligned with the ReviewSeverity domain enum.",
+                "enum": ["CRITICAL", "WARNING", "SUGGESTION", "PRAISE"]
+              },
+              "description": {
+                "type": "string",
+                "description": "Short description of the expected finding.",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

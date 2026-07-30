@@ -12,9 +12,9 @@ export enum ErrorCode {
 export class AppError extends Error {
   constructor(
     public readonly code: ErrorCode,
-    message: string,
+    override readonly message: string,
     public readonly isRetryable: boolean = false,
-    public readonly cause?: Error,
+    override readonly cause?: Error,
   ) {
     super(message);
     this.name = 'AppError';

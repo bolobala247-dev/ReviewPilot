@@ -1,73 +1,82 @@
-import { ReviewReport, ReviewSeverity } from '../domain/types';
+import { ReviewReport, ReviewSeverity } from '@domain/types';
 
-export function renderMarkdown(report: ReviewReport): string {
+export function renderPlainText(report: ReviewReport): string {
   const lines: string[] = [];
 
-  lines.push(`# Code Review Report: ${report.repo}#${report.prNumber}`);
-  lines.push(`**PR Title:** ${report.prTitle}\n`);
-
-  lines.push(`## Overview`);
-  lines.push(report.summary || 'No summary provided.');
+  lines.push('═══════════════════════════════════════');
+  lines.push('  ReviewPilot — Code Review Report');
+  lines.push('═══════════════════════════════════════');
   lines.push('');
+  lines.push(`  Repository:     ${report.repo}`);
+  lines.push(`  Pull Request:   #${report.prNumber} — ${report.prTitle}`);
+  lines.push(`  Provider:       ${report.metadata.provider} (${report.metadata.model})`);
+  lines.push(`  Duration:       ${report.metadata.durationMs}ms`);
+  lines.push(`  Files Reviewed: ${report.reviewedFiles.length}`);
+  lines.push(`  Files Skipped:  ${report.skippedFiles.length}`);
+  lines.push(`  Total Comments: ${report.comments.length}`);
 
-  lines.push(`### Metadata`);
-  lines.push(`- **Provider:** ${report.metadata.provider}`);
-  lines.push(`- **Model:** ${report.metadata.model}`);
-  lines.push(`- **Total Tokens:** ${report.metadata.totalTokens}`);
-  lines.push(`- **Duration:** ${report.metadata.durationMs}ms`);
-  lines.push(`- **Timestamp:** ${report.metadata.timestamp}`);
-  lines.push(`- **Reviewed Files (${report.reviewedFiles.length}):** ${report.reviewedFiles.join(', ') || 'None'}`);
-  if (report.skippedFiles.length > 0) {
-    lines.push(`- **Skipped Files (${report.skippedFiles.length}):** ${report.skippedFiles.join(', ')}`);
+  if (report.metadata.parserStatus === 'failed') {
+    lines.push('  Parser Status:  FAILED (AI response could not be parsed)');
   }
-  lines.push('');
 
-  lines.push(`## Review Findings (${report.comments.length})`);
   lines.push('');
 
   if (report.comments.length === 0) {
-    lines.push('✨ No issues found! Code looks good.');
-    return lines.join('\n');
-  }
-
-  // Group by file
-  const commentsByFile = new Map<string, typeof report.comments>();
-  for (const comment of report.comments) {
-    const list = commentsByFile.get(comment.file) ?? [];
-    list.push(comment);
-    commentsByFile.set(comment.file, list);
-  }
-
-  for (const [file, fileComments] of commentsByFile.entries()) {
-    lines.push(`### File: \`${file}\``);
+    lines.push('  No findings.');
+  } else {
+    lines.push('───────────────────────────────────────');
+    lines.push('  Findings');
+    lines.push('───────────────────────────────────────');
     lines.push('');
 
-    for (const c of fileComments) {
-      const badge = getSeverityBadge(c.severity);
-      lines.push(`- **Line ${c.line}** ${badge} ${c.message}`);
-      if (c.suggestion) {
-        lines.push('  ```suggestion');
-        lines.push(`  ${c.suggestion.split('\n').join('\n  ')}`);
-        lines.push('  ```');
+    const commentsByFile = groupCommentsByFile(report.comments);
+
+    for (const [file, fileComments] of commentsByFile.entries()) {
+      lines.push(`  ${file}`);
+      lines.push('');
+
+      for (const c of fileComments) {
+        const tag = severityTag(c.severity);
+        lines.push(`    Line ${c.line} ${tag} ${c.message}`);
+        if (c.suggestion) {
+          lines.push(`      Suggestion: ${c.suggestion}`);
+        }
       }
+
       lines.push('');
     }
   }
 
+  lines.push('───────────────────────────────────────');
+  lines.push('  ✨ Review complete.');
+  lines.push('');
+
   return lines.join('\n');
 }
 
-function getSeverityBadge(severity: ReviewSeverity): string {
+function groupCommentsByFile(
+  comments: ReviewReport['comments'],
+): Map<string, ReviewReport['comments']> {
+  const map = new Map<string, ReviewReport['comments']>();
+  for (const comment of comments) {
+    const list = map.get(comment.file) ?? [];
+    list.push(comment);
+    map.set(comment.file, list);
+  }
+  return map;
+}
+
+function severityTag(severity: ReviewSeverity): string {
   switch (severity) {
     case ReviewSeverity.CRITICAL:
-      return '🔴 `[CRITICAL]`';
+      return '[CRITICAL]';
     case ReviewSeverity.WARNING:
-      return '🟠 `[WARNING]`';
+      return '[WARNING]';
     case ReviewSeverity.SUGGESTION:
-      return '🔵 `[SUGGESTION]`';
+      return '[SUGGESTION]';
     case ReviewSeverity.PRAISE:
-      return '🟢 `[PRAISE]`';
+      return '[PRAISE]';
     default:
-      return '⚪ `[INFO]`';
+      return '[INFO]';
   }
 }

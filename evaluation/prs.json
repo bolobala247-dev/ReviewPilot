@@ -1,0 +1,46 @@
+{
+  "$schema": "./prs.schema.json",
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "express-bug-fix-small",
+      "repository": "expressjs/express",
+      "pullRequest": 5555,
+      "category": "bug-fix",
+      "changedFiles": 2,
+      "expectedDifficulty": "easy",
+      "languages": ["javascript"],
+      "notes": "Small, focused bug fix in request handling. A good reviewer should confirm the fix is correct and check for missing edge-case tests. Low hallucination risk due to small diff.",
+      "knownIssues": []
+    },
+    {
+      "id": "typescript-refactor-medium",
+      "repository": "microsoft/TypeScript",
+      "pullRequest": 58000,
+      "category": "refactor",
+      "changedFiles": 8,
+      "expectedDifficulty": "medium",
+      "languages": ["typescript"],
+      "notes": "Internal refactor touching multiple compiler files. Tests whether the reviewer avoids flagging intentional behavior-preserving changes as bugs (false-positive trap).",
+      "knownIssues": []
+    },
+    {
+      "id": "node-security-hard",
+      "repository": "nodejs/node",
+      "pullRequest": 50000,
+      "category": "security",
+      "changedFiles": 15,
+      "expectedDifficulty": "hard",
+      "languages": ["javascript", "cpp"],
+      "notes": "Security-sensitive change across JS and native layers. Large mixed-language diff stresses token budgeting and file filtering. Reviewer should surface input-validation and boundary concerns.",
+      "knownIssues": [
+        {
+          "file": "lib/internal/example.js",
+          "line": 42,
+          "severity": "CRITICAL",
+          "description": "Placeholder ground-truth entry: replace with a real expected finding when curating this case."
+        }
+      ]
+    }
+  ]
+}
