@@ -50,7 +50,7 @@ export function loadConfig(overrides: Record<string, unknown> = {}): AppConfig {
         overrides.model ??
         process.env.AICR_AI_MODEL ??
         (process.env.AICR_AI_PROVIDER === 'gemini'
-          ? 'gemini-1.5-pro'
+          ? 'gemini-3.6-flash'
           : process.env.AICR_AI_PROVIDER === 'anthropic'
             ? 'claude-3-5-sonnet-20240620'
             : 'gpt-4o'),
