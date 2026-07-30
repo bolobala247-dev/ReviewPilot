@@ -1,12 +1,7 @@
-Please review the following file diff:
+Please review the following Pull Request:
 
-Filename: {{filename}}
-Language: {{language}}
-Additions: {{additions}}
-Deletions: {{deletions}}
+PR Title: {{PR_TITLE}}
 
-Diff Patch:
+Changed Files and Diffs:
 
-```diff
-{{patch}}
-```
+{{FILES}}

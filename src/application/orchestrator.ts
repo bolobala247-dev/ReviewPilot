@@ -64,11 +64,12 @@ export class ReviewOrchestrator {
         fileLog.info('Reviewing file diff');
 
         try {
-          const { systemPrompt, userPrompt } = buildPrompt(
-            file,
-            systemPromptTemplate,
-            userPromptTemplate,
-          );
+          const { systemPrompt, userPrompt } = buildPrompt({
+            prTitle: prData.prTitle,
+            files: [file],
+            systemTemplate: systemPromptTemplate,
+            userTemplate: userPromptTemplate,
+          });
 
           const response = await retry(() =>
             this.provider.review({
