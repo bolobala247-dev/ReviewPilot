@@ -175,6 +175,46 @@ pnpm start --owner octocat --repo Hello-World --pr 42 --provider gemini
 
 ---
 
+## 🤖 GitHub Actions Integration
+
+ReviewPilot runs automatically on Pull Requests via GitHub Actions and posts the AI review as a PR comment:
+
+```
+Pull Request → ReviewPilot → AI Review → GitHub PR Comment
+```
+
+### Setup
+
+1. Add the repository secret **`AICR_AI_API_KEY`** (Settings → Secrets and variables → Actions).
+2. The included [`pr-review.yml`](.github/workflows/pr-review.yml) workflow triggers on `opened` / `synchronize` / `reopened` PR events and calls the reusable workflow.
+
+### Reusable workflow
+
+[`reviewpilot-review.yml`](.github/workflows/reviewpilot-review.yml) can be called from any workflow:
+
+```yaml
+jobs:
+  ai-review:
+    uses: ./.github/workflows/reviewpilot-review.yml
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      provider: gemini # openai | gemini | anthropic
+      model: '' # optional model override
+      dry_run: false # true = report to job summary only, no PR comment
+    secrets:
+      AI_API_KEY: ${{ secrets.AICR_AI_API_KEY }}
+```
+
+### Behavior
+
+- **Provider selection** via the `provider` input (and optional `model` override).
+- **No duplicate comments**: the review comment carries a hidden marker and is updated in place on subsequent pushes.
+- **Graceful failure**: provider/GitHub errors produce a workflow warning and job summary — the PR check is never blocked.
+- **Dry-run mode**: `dry_run: true` writes the report to the job summary instead of commenting; also available when triggering manually via *Run workflow*.
+- **Concurrency**: superseded runs for the same PR are cancelled automatically.
+
+---
+
 ## 🗺 Roadmap
 
 - [x] **V1 MVP Skeleton**: Clean Architecture setup, TypeScript strict flags, pnpm, Vitest, ESLint, Prettier, Husky.

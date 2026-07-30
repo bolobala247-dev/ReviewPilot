@@ -1,0 +1,41 @@
+name: PR AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull Request number to review'
+        required: true
+        type: string
+      provider:
+        description: 'AI provider'
+        required: false
+        type: choice
+        options: [openai, gemini, anthropic]
+        default: openai
+      dry_run:
+        description: 'Dry run (no PR comment)'
+        required: false
+        type: boolean
+        default: false
+
+# One review per PR at a time; superseded pushes cancel the in-flight run.
+concurrency:
+  group: reviewpilot-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-review:
+    uses: ./.github/workflows/reviewpilot-review.yml
+    with:
+      pr_number: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || fromJSON(github.event.inputs.pr_number) }}
+      provider: ${{ github.event.inputs.provider || 'openai' }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+    secrets:
+      AI_API_KEY: ${{ secrets.AICR_AI_API_KEY }}

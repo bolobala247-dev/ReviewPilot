@@ -1,0 +1,150 @@
+name: ReviewPilot AI Review (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'Pull Request number to review'
+        required: true
+        type: number
+      provider:
+        description: 'AI provider (openai, gemini, anthropic)'
+        required: false
+        type: string
+        default: 'openai'
+      model:
+        description: 'Override AI model (empty = provider default)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Run the review but do not post a PR comment'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      AI_API_KEY:
+        description: 'API key for the selected AI provider'
+        required: true
+      REVIEW_GITHUB_TOKEN:
+        description: 'Token used by ReviewPilot to fetch the PR (defaults to github.token)'
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm build
+
+      - name: Run ReviewPilot
+        id: review
+        # Graceful failure: a provider/GitHub error must not break the PR check.
+        continue-on-error: true
+        env:
+          AICR_AI_PROVIDER: ${{ inputs.provider }}
+          AICR_AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AICR_GITHUB_TOKEN: ${{ secrets.REVIEW_GITHUB_TOKEN != '' && secrets.REVIEW_GITHUB_TOKEN || github.token }}
+          AICR_LOG_LEVEL: error
+          MODEL_INPUT: ${{ inputs.model }}
+        run: |
+          set -o pipefail
+          # Only export the model override when provided (empty string would bypass provider defaults)
+          if [ -n "$MODEL_INPUT" ]; then
+            export AICR_AI_MODEL="$MODEL_INPUT"
+          fi
+          node dist/cli.js review \
+            --repo "${{ github.repository }}" \
+            --pr "${{ inputs.pr_number }}" \
+            --provider "${{ inputs.provider }}" \
+            | tee review-report.txt
+
+      - name: Handle review failure gracefully
+        if: steps.review.outcome == 'failure'
+        run: |
+          echo "::warning::ReviewPilot review failed for PR #${{ inputs.pr_number }} — no comment will be posted."
+          {
+            echo "## ⚠️ ReviewPilot — review failed"
+            echo ""
+            echo "The AI review could not be completed (provider or GitHub error)."
+            echo "Check the \"Run ReviewPilot\" step logs. The PR check is not blocked."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish dry-run report to job summary
+        if: steps.review.outcome == 'success' && inputs.dry_run
+        run: |
+          {
+            echo "## 🤖 ReviewPilot — AI Code Review (dry run)"
+            echo ""
+            echo "Dry-run mode: no PR comment was posted."
+            echo ""
+            echo '```text'
+            cat review-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post PR comment (create or update)
+        if: steps.review.outcome == 'success' && !inputs.dry_run
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- reviewpilot:ai-review -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const { owner, repo } = context.repo;
+
+            let report = fs.readFileSync('review-report.txt', 'utf8');
+            const maxLen = 60000; // GitHub comment hard limit is 65536 chars
+            if (report.length > maxLen) {
+              report = `${report.slice(0, maxLen)}\n… (report truncated)`;
+            }
+
+            const body = [
+              marker,
+              '## 🤖 ReviewPilot — AI Code Review',
+              '',
+              '```text',
+              report,
+              '```',
+              '',
+              `_Provider: \`${{ inputs.provider }}\` · Run: [#${context.runNumber}](${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId})_`,
+            ].join('\n');
+
+            // No duplicate comments: find the marker and update in place.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              core.info(`Updated existing ReviewPilot comment (id: ${existing.id})`);
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+              core.info('Created new ReviewPilot comment');
+            }
