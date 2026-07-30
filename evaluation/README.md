@@ -27,6 +27,26 @@ Provider/model are taken from `.env` (`AICR_AI_PROVIDER`, `AICR_AI_MODEL`). To c
 
 ---
 
+## Manual Quality Evaluation (Phase 10.4)
+
+After a benchmark run, generate one evaluation template per result:
+
+```bash
+pnpm bench:eval
+```
+
+For every `results/<owner>-<repo>-<pr>.json` this creates `results/<owner>-<repo>-<pr>.eval.md`, pre-filled from the run (repository, PR, provider, model, duration, tokens, and all findings) with **empty reviewer score fields**. Existing `.eval.md` files are never overwritten, and failed runs are skipped.
+
+The reviewer then fills in by hand:
+
+- A **classification per finding**: correct · incorrect · hallucinated · duplicate
+- **Reviewer Scores (1–5)**: Precision, Recall, Hallucination, Duplicate, Usefulness
+- **Overall Notes** and reviewer signature
+
+The blank template lives at [`templates/evaluation-template.md`](./templates/evaluation-template.md). Scoring is intentionally **not automated** — human judgment is the ground truth.
+
+---
+
 ## Folder Structure
 
 ```
