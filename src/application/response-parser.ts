@@ -1,51 +1,71 @@
 import { ReviewComment, ReviewSeverity } from '@domain/types';
-import { logger } from '@infrastructure/logger';
 
-export function parseResponse(rawContent: string, filename: string): ReviewComment[] {
+export function parseResponse(rawContent: string, defaultFilename: string): ReviewComment[] {
   if (!rawContent || rawContent.trim().length === 0) {
     return [];
   }
 
   try {
     const cleaned = stripMarkdownCodeBlocks(rawContent);
-    const parsed = JSON.parse(cleaned);
-    const comments = extractCommentsFromObject(parsed, filename);
-    if (comments.length > 0) {
-      return comments;
-    }
-  } catch (err) {
-    logger.debug(
-      { filename, error: (err as Error).message },
-      'Direct JSON parsing failed, attempting fallback regex parsing',
-    );
-  }
+    const parsed: unknown = JSON.parse(cleaned);
 
-  try {
-    const jsonMatch =
-      rawContent.match(/\{[\s\S]*"comments"[\s\S]*\}/) || rawContent.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const comments = extractCommentsFromObject(parsed, filename);
-      if (comments.length > 0) {
-        return comments;
+    if (typeof parsed !== 'object' || parsed === null) {
+      return [];
+    }
+
+    const obj = parsed as Record<string, unknown>;
+    if (!Array.isArray(obj['comments'])) {
+      return [];
+    }
+
+    const comments: ReviewComment[] = [];
+    const seen = new Set<string>();
+
+    for (const item of obj['comments']) {
+      if (typeof item !== 'object' || item === null) continue;
+      const commentObj = item as Record<string, unknown>;
+
+      if (typeof commentObj['message'] !== 'string' || commentObj['message'].trim().length === 0) {
+        continue;
       }
-    }
-  } catch (err) {
-    logger.debug({ filename, error: (err as Error).message }, 'Regex JSON extraction failed');
-  }
 
-  logger.warn(
-    { filename },
-    'Failed to parse structured JSON from LLM response; creating fallback comment',
-  );
-  return [
-    {
-      file: filename,
-      line: 1,
-      severity: ReviewSeverity.WARNING,
-      message: rawContent.trim(),
-    },
-  ];
+      const file =
+        typeof commentObj['file'] === 'string' && commentObj['file'].trim().length > 0
+          ? commentObj['file']
+          : defaultFilename;
+
+      const line =
+        typeof commentObj['line'] === 'number' && commentObj['line'] > 0
+          ? Math.floor(commentObj['line'])
+          : 1;
+
+      const severity = parseSeverity(commentObj['severity']);
+      const message = commentObj['message'].trim();
+
+      const dedupeKey = `${file}:${line}:${severity}:${message}`;
+      if (seen.has(dedupeKey)) {
+        continue;
+      }
+      seen.add(dedupeKey);
+
+      const comment: ReviewComment = {
+        file,
+        line,
+        severity,
+        message,
+      };
+
+      if (typeof commentObj['suggestion'] === 'string' && commentObj['suggestion'].length > 0) {
+        comment.suggestion = commentObj['suggestion'];
+      }
+
+      comments.push(comment);
+    }
+
+    return comments;
+  } catch {
+    return [];
+  }
 }
 
 function stripMarkdownCodeBlocks(text: string): string {
@@ -61,39 +81,12 @@ function stripMarkdownCodeBlocks(text: string): string {
   return trimmed.trim();
 }
 
-function extractCommentsFromObject(
-  obj: Record<string, unknown>,
-  filename: string,
-): ReviewComment[] {
-  const rawList = Array.isArray(obj) ? obj : Array.isArray(obj?.comments) ? obj.comments : [];
-  const results: ReviewComment[] = [];
-
-  for (const item of rawList) {
-    if (typeof item === 'object' && item !== null && 'message' in item) {
-      const msgItem = item as Record<string, unknown>;
-      const comment: ReviewComment = {
-        file: typeof msgItem.file === 'string' ? msgItem.file : filename,
-        line: typeof msgItem.line === 'number' ? msgItem.line : 1,
-        severity: parseSeverity(msgItem.severity),
-        message: String(msgItem.message),
-      };
-      if (msgItem.suggestion) {
-        comment.suggestion = String(msgItem.suggestion);
-      }
-      results.push(comment);
+function parseSeverity(val: unknown): ReviewSeverity {
+  if (typeof val === 'string') {
+    const upper = val.toUpperCase();
+    if (Object.values(ReviewSeverity).includes(upper as ReviewSeverity)) {
+      return upper as ReviewSeverity;
     }
   }
-
-  return results;
-}
-
-function parseSeverity(val: unknown): ReviewSeverity {
-  const str = String(val).toUpperCase();
-  if (str in ReviewSeverity) {
-    return ReviewSeverity[str as keyof typeof ReviewSeverity];
-  }
-  if (str.includes('CRIT') || str.includes('ERR')) return ReviewSeverity.CRITICAL;
-  if (str.includes('WARN')) return ReviewSeverity.WARNING;
-  if (str.includes('PRAISE') || str.includes('GOOD')) return ReviewSeverity.PRAISE;
   return ReviewSeverity.SUGGESTION;
 }
